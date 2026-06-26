@@ -10,6 +10,10 @@ import {
 } from './config';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './common/guard/jwt-auth.guard';
+import { JwtModule } from '@nestjs/jwt';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -22,9 +26,16 @@ import { PrismaModule } from './prisma/prisma.module';
       },
     }),
     PrismaModule,
+    JwtModule.register({ global: true }),
     AuthModule,
+    RedisModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+  ],
 })
 export class AppModule {}
