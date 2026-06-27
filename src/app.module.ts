@@ -14,6 +14,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guard/jwt-auth.guard';
 import { JwtModule } from '@nestjs/jwt';
 import { RedisModule } from './redis/redis.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { RedisModule } from './redis/redis.module';
     JwtModule.register({ global: true }),
     AuthModule,
     RedisModule,
+    UsersModule,
   ],
   controllers: [],
   providers: [
