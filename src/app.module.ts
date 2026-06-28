@@ -18,6 +18,7 @@ import { UsersModule } from './users/users.module';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { BoardsModule } from './boards/boards.module';
 import { ListsModule } from './lists/lists.module';
+import { CardsModule } from './cards/cards.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ListsModule } from './lists/lists.module';
     UsersModule,
     BoardsModule,
     ListsModule,
+    CardsModule,
   ],
   controllers: [],
   providers: [

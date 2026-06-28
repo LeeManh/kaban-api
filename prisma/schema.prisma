@@ -21,6 +21,12 @@ enum Role {
   VIEWER
 }
 
+enum CardPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -79,9 +85,28 @@ model List {
   order     Float
   boardId   String   @map("board_id")
   board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards     Card[]
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([boardId, order])
   @@map("lists")
+}
+
+
+
+model Card {
+  id          String       @id @default(cuid())
+  title       String
+  description String?      @db.Text
+  order       Float
+  priority    CardPriority @default(MEDIUM)
+  dueDate     DateTime?    @map("due_date")
+  listId      String       @map("list_id")
+  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([listId, order])
+  @@map("cards")
 }
