@@ -62,6 +62,7 @@ model Board {
   owner     User          @relation("BoardOwner", fields: [ownerId], references: [id])
   members   BoardMember[]
   lists     List[]
+  labels    Label[]
   createdAt DateTime      @default(now()) @map("created_at")
 
   @@map("boards")
@@ -93,8 +94,6 @@ model List {
   @@map("lists")
 }
 
-
-
 model Card {
   id          String       @id @default(cuid())
   title       String
@@ -104,9 +103,22 @@ model Card {
   dueDate     DateTime?    @map("due_date")
   listId      String       @map("list_id")
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  labels      Label[]
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
   @@index([listId, order])
   @@map("cards")
+}
+
+model Label {
+  id      String @id @default(cuid())
+  name    String
+  color   String
+  boardId String @map("board_id")
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards   Card[]
+
+  @@index([boardId])
+  @@map("labels")
 }
