@@ -16,6 +16,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { BoardsModule } from './boards/boards.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     AuthModule,
     RedisModule,
     UsersModule,
+    BoardsModule,
   ],
   controllers: [],
   providers: [

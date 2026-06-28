@@ -14,6 +14,13 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
 model User {
   id       String  @id @default(cuid())
   email    String  @unique
@@ -23,6 +30,8 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   refreshToken RefreshToken[]
+  ownedBoards   Board[]       @relation("BoardOwner")
+  boardMembers  BoardMember[] 
 
   @@map("users")
 }
@@ -38,4 +47,27 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+model Board {
+  id        String        @id @default(cuid())
+  name      String
+  ownerId   String        @map("owner_id")
+  owner     User          @relation("BoardOwner", fields: [ownerId], references: [id])
+  members   BoardMember[]
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@map("boards")
+}
+
+model BoardMember {
+  boardId String   @map("board_id")
+  userId  String   @map("user_id")
+  role    Role     @default(MEMBER)
+  board   Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([boardId, userId])
+  @@index([userId])
+  @@map("board_members")
 }
