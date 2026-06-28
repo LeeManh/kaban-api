@@ -22,16 +22,16 @@ enum Role {
 }
 
 model User {
-  id       String  @id @default(cuid())
-  email    String  @unique
-  password String
-  name     String?
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   refreshToken RefreshToken[]
-  ownedBoards   Board[]       @relation("BoardOwner")
-  boardMembers  BoardMember[] 
+  ownedBoards  Board[]        @relation("BoardOwner")
+  boardMembers BoardMember[]
 
   @@map("users")
 }
@@ -55,19 +55,33 @@ model Board {
   ownerId   String        @map("owner_id")
   owner     User          @relation("BoardOwner", fields: [ownerId], references: [id])
   members   BoardMember[]
+  lists     List[]
   createdAt DateTime      @default(now()) @map("created_at")
 
   @@map("boards")
 }
 
 model BoardMember {
-  boardId String   @map("board_id")
-  userId  String   @map("user_id")
-  role    Role     @default(MEMBER)
-  board   Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardId String @map("board_id")
+  userId  String @map("user_id")
+  role    Role   @default(MEMBER)
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([boardId, userId])
   @@index([userId])
   @@map("board_members")
+}
+
+model List {
+  id        String   @id @default(cuid())
+  title     String
+  order     Float
+  boardId   String   @map("board_id")
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([boardId, order])
+  @@map("lists")
 }

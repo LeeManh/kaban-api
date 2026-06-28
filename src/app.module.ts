@@ -17,6 +17,7 @@ import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { BoardsModule } from './boards/boards.module';
+import { ListsModule } from './lists/lists.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { BoardsModule } from './boards/boards.module';
     RedisModule,
     UsersModule,
     BoardsModule,
+    ListsModule,
   ],
   controllers: [],
   providers: [
