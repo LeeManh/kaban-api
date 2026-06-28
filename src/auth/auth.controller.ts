@@ -7,6 +7,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { type JwtPayload } from './types/jwt-payload.type';
 import { LogoutDto } from './dto/logout.dto';
+import { ResponseMessage } from 'src/common/decorators/response-message.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -15,6 +16,7 @@ export class AuthController {
   @Public()
   @Post('register')
   @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Đăng ký thành công')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
@@ -22,12 +24,14 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Đăng nhập thành công')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
   @Public()
   @Post('refresh')
+  @ResponseMessage('Làm mới token thành công')
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
   }
