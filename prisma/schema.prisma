@@ -38,6 +38,7 @@ model User {
   refreshToken RefreshToken[]
   ownedBoards  Board[]        @relation("BoardOwner")
   boardMembers BoardMember[]
+  comments     Comment[]
 
   @@map("users")
 }
@@ -104,11 +105,26 @@ model Card {
   listId      String       @map("list_id")
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
   labels      Label[]
+  comments    Comment[]
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
   @@index([listId, order])
   @@map("cards")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  cardId    String   @map("card_id")
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  authorId  String   @map("author_id")
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([cardId, createdAt])
+  @@map("comments")
 }
 
 model Label {
