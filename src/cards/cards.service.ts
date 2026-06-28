@@ -10,6 +10,8 @@ import { MoveCardDto } from './dto/move-card.dto';
 
 const ORDER_STEP = 1000;
 
+const LABEL_SELECT = { select: { id: true, name: true, color: true } };
+
 @Injectable()
 export class CardsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -41,11 +43,18 @@ export class CardsService {
     return this.prisma.card.findMany({
       where: { listId },
       orderBy: { order: 'asc' },
+      include: { labels: LABEL_SELECT },
     });
   }
 
-  findOne(boardId: string, cardId: string) {
-    return this.getCardInBoard(boardId, cardId);
+  async findOne(boardId: string, cardId: string) {
+    const card = await this.prisma.card.findFirst({
+      where: { id: cardId, list: { boardId } },
+      include: { labels: LABEL_SELECT },
+    });
+    if (!card)
+      throw new NotFoundException('Không tìm thấy card trong board này');
+    return card;
   }
 
   async update(boardId: string, cardId: string, dto: UpdateCardDto) {
