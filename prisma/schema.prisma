@@ -106,11 +106,37 @@ model Card {
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
   labels      Label[]
   comments    Comment[]
+  checklists  Checklist[]
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
   @@index([listId, order])
   @@map("cards")
+}
+
+model Checklist {
+  id        String          @id @default(cuid())
+  title     String
+  order     Float
+  cardId    String          @map("card_id")
+  card      Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  items     ChecklistItem[]
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  @@index([cardId, order])
+  @@map("checklists")
+}
+
+model ChecklistItem {
+  id          String    @id @default(cuid())
+  content     String
+  isDone      Boolean   @default(false) @map("is_done")
+  order       Float
+  checklistId String    @map("checklist_id")
+  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId, order])
+  @@map("checklist_items")
 }
 
 model Comment {
