@@ -75,4 +75,26 @@ export class CardsController {
   remove(@Param('boardId') boardId: string, @Param('cardId') cardId: string) {
     return this.cardsService.remove(boardId, cardId);
   }
+
+  @Post('cards/:cardId/assignees/:userId')
+  @Roles(Role.MEMBER)
+  @ResponseMessage('Gán thành viên vào card thành công')
+  assign(
+    @Param('boardId') boardId: string,
+    @Param('cardId') cardId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.cardsService.assignMember(boardId, cardId, userId);
+  }
+
+  @Delete('cards/:cardId/assignees/:userId')
+  @Roles(Role.MEMBER)
+  @ResponseMessage('Gỡ thành viên khỏi card thành công')
+  unassign(
+    @Param('boardId') boardId: string,
+    @Param('cardId') cardId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.cardsService.unassignMember(boardId, cardId, userId);
+  }
 }

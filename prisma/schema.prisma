@@ -35,11 +35,12 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  refreshToken RefreshToken[]
-  ownedBoards  Board[]        @relation("BoardOwner")
-  boardMembers BoardMember[]
-  comments     Comment[]
-  attachments  Attachment[]
+  refreshToken  RefreshToken[]
+  ownedBoards   Board[]        @relation("BoardOwner")
+  boardMembers  BoardMember[]
+  comments      Comment[]
+  attachments   Attachment[]
+  assignedCards Card[]         @relation("CardAssignees")
 
   @@map("users")
 }
@@ -109,6 +110,7 @@ model Card {
   comments    Comment[]
   checklists  Checklist[]
   attachments Attachment[]
+  assignees   User[]       @relation("CardAssignees")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 

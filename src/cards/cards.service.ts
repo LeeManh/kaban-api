@@ -11,6 +11,7 @@ import { MoveCardDto } from './dto/move-card.dto';
 const ORDER_STEP = 1000;
 
 const LABEL_SELECT = { select: { id: true, name: true, color: true } };
+const ASSIGNEE_SELECT = { select: { id: true, name: true, email: true } };
 
 @Injectable()
 export class CardsService {
@@ -43,14 +44,14 @@ export class CardsService {
     return this.prisma.card.findMany({
       where: { listId },
       orderBy: { order: 'asc' },
-      include: { labels: LABEL_SELECT },
+      include: { labels: LABEL_SELECT, assignees: ASSIGNEE_SELECT },
     });
   }
 
   async findOne(boardId: string, cardId: string) {
     const card = await this.prisma.card.findFirst({
       where: { id: cardId, list: { boardId } },
-      include: { labels: LABEL_SELECT },
+      include: { labels: LABEL_SELECT, assignees: ASSIGNEE_SELECT },
     });
     if (!card)
       throw new NotFoundException('Không tìm thấy card trong board này');
@@ -75,7 +76,6 @@ export class CardsService {
     const card = await this.getCardInBoard(boardId, cardId);
     const targetListId = dto.listId ?? card.listId;
 
-    // Nếu chuyển sang list khác, verify list đích cũng thuộc board.
     if (dto.listId && dto.listId !== card.listId)
       await this.ensureListInBoard(boardId, dto.listId);
 
@@ -109,7 +109,6 @@ export class CardsService {
     if (after !== null) return after - ORDER_STEP; // lên đầu
     if (before !== null) return before + ORDER_STEP; // xuống sau 1 card
 
-    // Không chỉ định lân cận → thêm vào cuối list đích.
     const last = await this.prisma.card.findFirst({
       where: { listId },
       orderBy: { order: 'desc' },
@@ -136,6 +135,37 @@ export class CardsService {
         'Không tìm thấy card lân cận trong list đích',
       );
     return neighbor.order;
+  }
+
+  async assignMember(boardId: string, cardId: string, userId: string) {
+    await this.getCardInBoard(boardId, cardId);
+    await this.ensureBoardMember(boardId, userId);
+
+    await this.prisma.card.update({
+      where: { id: cardId },
+      data: { assignees: { connect: { id: userId } } },
+    });
+    return { cardId, userId };
+  }
+
+  async unassignMember(boardId: string, cardId: string, userId: string) {
+    await this.getCardInBoard(boardId, cardId);
+    await this.prisma.card.update({
+      where: { id: cardId },
+      data: { assignees: { disconnect: { id: userId } } },
+    });
+    return { cardId, userId };
+  }
+
+  private async ensureBoardMember(boardId: string, userId: string) {
+    const member = await this.prisma.boardMember.findUnique({
+      where: { boardId_userId: { boardId, userId } },
+      select: { userId: true },
+    });
+    if (!member)
+      throw new BadRequestException(
+        'Người dùng không phải thành viên của board',
+      );
   }
 
   private async getCardInBoard(boardId: string, cardId: string) {
