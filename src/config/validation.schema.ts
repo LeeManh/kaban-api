@@ -18,4 +18,11 @@ export const validationSchema = Joi.object({
 
   // Redis
   REDIS_URL: Joi.string().uri(),
+
+  // Object storage
+  STORAGE_ENDPOINT: Joi.string().uri(),
+  STORAGE_REGION: Joi.string().default('auto'),
+  STORAGE_ACCESS_KEY: Joi.string(),
+  STORAGE_SECRET_KEY: Joi.string(),
+  STORAGE_BUCKET: Joi.string(),
 });

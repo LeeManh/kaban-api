@@ -6,6 +6,7 @@ import {
   dbConfig,
   jwtConfig,
   redisConfig,
+  storageConfig,
   validationSchema,
 } from './config';
 import { AuthModule } from './auth/auth.module';
@@ -22,12 +23,13 @@ import { CardsModule } from './cards/cards.module';
 import { LabelsModule } from './labels/labels.module';
 import { CommentsModule } from './comments/comments.module';
 import { ChecklistsModule } from './checklists/checklists.module';
+import { AttachmentsModule } from './attachments/attachments.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, dbConfig, jwtConfig, redisConfig],
+      load: [appConfig, dbConfig, jwtConfig, redisConfig, storageConfig],
       validationSchema,
       validationOptions: {
         abortEarly: false,
@@ -44,6 +46,7 @@ import { ChecklistsModule } from './checklists/checklists.module';
     LabelsModule,
     CommentsModule,
     ChecklistsModule,
+    AttachmentsModule,
   ],
   controllers: [],
   providers: [

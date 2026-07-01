@@ -39,6 +39,7 @@ model User {
   ownedBoards  Board[]        @relation("BoardOwner")
   boardMembers BoardMember[]
   comments     Comment[]
+  attachments  Attachment[]
 
   @@map("users")
 }
@@ -107,6 +108,7 @@ model Card {
   labels      Label[]
   comments    Comment[]
   checklists  Checklist[]
+  attachments Attachment[]
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
@@ -163,4 +165,20 @@ model Label {
 
   @@index([boardId])
   @@map("labels")
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  filename     String
+  key          String   @unique
+  mimeType     String?  @map("mime_type")
+  size         Int?
+  cardId       String   @map("card_id")
+  uploadedById String   @map("uploaded_by_id")
+  card         Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([cardId])
+  @@map("attachments")
 }
