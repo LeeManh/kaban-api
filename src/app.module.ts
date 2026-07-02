@@ -8,6 +8,7 @@ import {
   jwtConfig,
   redisConfig,
   storageConfig,
+  mailConfig,
   validationSchema,
 } from './config';
 import { AuthModule } from './auth/auth.module';
@@ -25,12 +26,20 @@ import { LabelsModule } from './labels/labels.module';
 import { CommentsModule } from './comments/comments.module';
 import { ChecklistsModule } from './checklists/checklists.module';
 import { AttachmentsModule } from './attachments/attachments.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, dbConfig, jwtConfig, redisConfig, storageConfig],
+      load: [
+        appConfig,
+        dbConfig,
+        jwtConfig,
+        redisConfig,
+        storageConfig,
+        mailConfig,
+      ],
       validationSchema,
       validationOptions: {
         abortEarly: false,
@@ -61,6 +70,7 @@ import { AttachmentsModule } from './attachments/attachments.module';
     CommentsModule,
     ChecklistsModule,
     AttachmentsModule,
+    MailModule,
   ],
   controllers: [],
   providers: [

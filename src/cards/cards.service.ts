@@ -3,7 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
+import { MAIL_JOB, MAIL_QUEUE } from '../mail/mail.constants';
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { MoveCardDto } from './dto/move-card.dto';
@@ -15,7 +18,10 @@ const ASSIGNEE_SELECT = { select: { id: true, name: true, email: true } };
 
 @Injectable()
 export class CardsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
+  ) {}
 
   async create(boardId: string, listId: string, dto: CreateCardDto) {
     await this.ensureListInBoard(boardId, listId);
@@ -138,13 +144,30 @@ export class CardsService {
   }
 
   async assignMember(boardId: string, cardId: string, userId: string) {
-    await this.getCardInBoard(boardId, cardId);
+    const card = await this.getCardInBoard(boardId, cardId);
     await this.ensureBoardMember(boardId, userId);
 
     await this.prisma.card.update({
       where: { id: cardId },
       data: { assignees: { connect: { id: userId } } },
     });
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (user) {
+      await this.mailQueue.add(
+        MAIL_JOB.CARD_ASSIGNED,
+        { to: user.email, cardTitle: card.title },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2000 },
+          removeOnComplete: true,
+        },
+      );
+    }
+
     return { cardId, userId };
   }
 

@@ -25,4 +25,11 @@ export const validationSchema = Joi.object({
   STORAGE_ACCESS_KEY: Joi.string(),
   STORAGE_SECRET_KEY: Joi.string(),
   STORAGE_BUCKET: Joi.string(),
+
+  // Mail (SMTP)
+  MAIL_HOST: Joi.string(),
+  MAIL_PORT: Joi.number().default(587),
+  MAIL_USER: Joi.string(),
+  MAIL_PASS: Joi.string(),
+  MAIL_FROM: Joi.string(),
 });
