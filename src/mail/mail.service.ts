@@ -17,7 +17,7 @@ export class MailService {
       port: cfg.port,
       auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined,
     });
-    this.from = cfg.from;
+    this.from = cfg.from ?? 'Kanvas <no-reply@kanvas.local>';
   }
 
   async sendMail(params: { to: string; subject: string; html: string }) {

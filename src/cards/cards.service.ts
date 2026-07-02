@@ -33,7 +33,7 @@ export class CardsService {
     });
     const order = (last?.order ?? 0) + ORDER_STEP;
 
-    return this.prisma.card.create({
+    const card = await this.prisma.card.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -43,6 +43,9 @@ export class CardsService {
         listId,
       },
     });
+
+    await this.scheduleDueReminder(card.id, card.dueDate);
+    return card;
   }
 
   async findAll(boardId: string, listId: string) {
@@ -66,16 +69,48 @@ export class CardsService {
 
   async update(boardId: string, cardId: string, dto: UpdateCardDto) {
     await this.getCardInBoard(boardId, cardId);
-    return this.prisma.card.update({
+    const card = await this.prisma.card.update({
       where: { id: cardId },
       data: dto,
     });
+
+    // dueDate có thể vừa đổi/bị xóa → đặt lại (hoặc hủy) job nhắc.
+    await this.scheduleDueReminder(card.id, card.dueDate);
+    return card;
   }
 
   async remove(boardId: string, cardId: string) {
     await this.getCardInBoard(boardId, cardId);
     await this.prisma.card.delete({ where: { id: cardId } });
+    // Hủy job nhắc hạn (nếu có) khi card bị xóa.
+    await this.scheduleDueReminder(cardId, null);
     return { id: cardId };
+  }
+
+  // Đặt/cập nhật/hủy job nhắc hạn cho card. jobId cố định theo cardId
+  // → gọi lại luôn thay job cũ; dueDate null/quá hạn → chỉ hủy.
+  private async scheduleDueReminder(cardId: string, dueDate: Date | null) {
+    const jobId = `due-reminder:${cardId}`;
+
+    // Xóa job cũ trước (để cập nhật khi đổi hạn, hoặc hủy khi bỏ hạn/xóa card).
+    const existing = await this.mailQueue.getJob(jobId);
+    if (existing) await existing.remove();
+
+    if (!dueDate) return;
+    const delay = new Date(dueDate).getTime() - Date.now();
+    if (delay <= 0) return; // đã quá hạn → không nhắc
+
+    await this.mailQueue.add(
+      MAIL_JOB.DUE_REMINDER,
+      { cardId },
+      {
+        jobId,
+        delay,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: true,
+      },
+    );
   }
 
   async move(boardId: string, cardId: string, dto: MoveCardDto) {
