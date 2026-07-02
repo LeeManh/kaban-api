@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { SentryModule } from '@sentry/nestjs/setup';
 
 import {
   appConfig,
@@ -33,6 +34,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       load: [

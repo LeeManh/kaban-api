@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import { Request, Response } from 'express';
 
 export interface FieldError {
@@ -47,6 +48,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `${request.method} ${request.url}`,
         exception instanceof Error ? exception.stack : exception,
       );
+      Sentry.captureException(exception);
     }
 
     const body: ErrorResponse = {
