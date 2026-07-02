@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, type ConfigType } from '@nestjs/config';
+import { BullModule } from '@nestjs/bullmq';
 
 import {
   appConfig,
@@ -37,6 +38,19 @@ import { AttachmentsModule } from './attachments/attachments.module';
     }),
     PrismaModule,
     JwtModule.register({ global: true }),
+    BullModule.forRootAsync({
+      inject: [redisConfig.KEY],
+      useFactory: (cfg: ConfigType<typeof redisConfig>) => {
+        const url = new URL(cfg.url);
+        return {
+          connection: {
+            host: url.hostname,
+            port: Number(url.port),
+            password: url.password,
+          },
+        };
+      },
+    }),
     AuthModule,
     RedisModule,
     UsersModule,

@@ -1,14 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { PresignAttachmentDto } from './dto/presign-attachment.dto';
+import { ATTACHMENT_JOB, ATTACHMENTS_QUEUE } from './attachment.constants';
 
 @Injectable()
 export class AttachmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    @InjectQueue(ATTACHMENTS_QUEUE) private readonly attachmentsQueue: Queue,
   ) {}
 
   async presign(
@@ -56,8 +60,17 @@ export class AttachmentsService {
   async remove(boardId: string, attachmentId: string) {
     const att = await this.getAttachmentInBoard(boardId, attachmentId);
 
-    await this.storage.deleteObject(att.key);
     await this.prisma.attachment.delete({ where: { id: att.id } });
+
+    await this.attachmentsQueue.add(
+      ATTACHMENT_JOB.DELETE_OBJECT,
+      { key: att.key },
+      {
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: true,
+      },
+    );
     return { id: att.id };
   }
 

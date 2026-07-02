@@ -15,3 +15,9 @@ export const ALLOWED_MIME = [
   'text/plain', // .txt
   'application/zip', // .zip
 ] as const;
+
+export const ATTACHMENTS_QUEUE = 'attachments';
+
+export const ATTACHMENT_JOB = {
+  DELETE_OBJECT: 'delete-object',
+} as const;
