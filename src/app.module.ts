@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 import {
   appConfig,
@@ -27,6 +28,7 @@ import { CommentsModule } from './comments/comments.module';
 import { ChecklistsModule } from './checklists/checklists.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { MailModule } from './mail/mail.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -46,6 +48,7 @@ import { MailModule } from './mail/mail.module';
       },
     }),
     PrismaModule,
+    EventEmitterModule.forRoot(),
     JwtModule.register({ global: true }),
     BullModule.forRootAsync({
       inject: [redisConfig.KEY],
@@ -71,6 +74,7 @@ import { MailModule } from './mail/mail.module';
     ChecklistsModule,
     AttachmentsModule,
     MailModule,
+    EventsModule,
   ],
   controllers: [],
   providers: [

@@ -1,12 +1,16 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
+import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MAIL_JOB, MAIL_QUEUE } from '../mail/mail.constants';
+import { APP_EVENT } from '../events/events.constants';
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { MoveCardDto } from './dto/move-card.dto';
@@ -21,6 +25,7 @@ export class CardsService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(boardId: string, listId: string, dto: CreateCardDto) {
@@ -69,26 +74,42 @@ export class CardsService {
 
   async update(boardId: string, cardId: string, dto: UpdateCardDto) {
     await this.getCardInBoard(boardId, cardId);
-    const card = await this.prisma.card.update({
-      where: { id: cardId },
-      data: dto,
-    });
+    const { version, ...data } = dto;
+    const card = await this.updateWithVersion(cardId, version, data);
 
-    // dueDate có thể vừa đổi/bị xóa → đặt lại (hoặc hủy) job nhắc.
     await this.scheduleDueReminder(card.id, card.dueDate);
     return card;
+  }
+
+  private async updateWithVersion(
+    cardId: string,
+    version: number,
+    data: Omit<UpdateCardDto, 'version'>,
+  ) {
+    try {
+      return await this.prisma.card.update({
+        where: { id: cardId, version },
+        data: { ...data, version: { increment: 1 } },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2025'
+      )
+        throw new ConflictException(
+          'Card đã bị người khác cập nhật, vui lòng tải lại',
+        );
+      throw err;
+    }
   }
 
   async remove(boardId: string, cardId: string) {
     await this.getCardInBoard(boardId, cardId);
     await this.prisma.card.delete({ where: { id: cardId } });
-    // Hủy job nhắc hạn (nếu có) khi card bị xóa.
     await this.scheduleDueReminder(cardId, null);
     return { id: cardId };
   }
 
-  // Đặt/cập nhật/hủy job nhắc hạn cho card. jobId cố định theo cardId
-  // → gọi lại luôn thay job cũ; dueDate null/quá hạn → chỉ hủy.
   private async scheduleDueReminder(cardId: string, dueDate: Date | null) {
     const jobId = `due-reminder:${cardId}`;
 
@@ -113,7 +134,12 @@ export class CardsService {
     );
   }
 
-  async move(boardId: string, cardId: string, dto: MoveCardDto) {
+  async move(
+    boardId: string,
+    cardId: string,
+    dto: MoveCardDto,
+    actorId: string,
+  ) {
     const card = await this.getCardInBoard(boardId, cardId);
     const targetListId = dto.listId ?? card.listId;
 
@@ -122,10 +148,20 @@ export class CardsService {
 
     const order = await this.computeOrder(targetListId, dto, cardId);
 
-    return this.prisma.card.update({
+    const updated = await this.prisma.card.update({
       where: { id: cardId },
       data: { listId: targetListId, order },
     });
+
+    this.eventEmitter.emit(APP_EVENT.CARD_MOVED, {
+      boardId,
+      cardId: updated.id,
+      listId: updated.listId,
+      order: updated.order,
+      actorId,
+    });
+
+    return updated;
   }
 
   private async computeOrder(

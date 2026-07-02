@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Role } from 'generated/prisma/enums';
+import { GetUser } from '../common/decorators/get-user.decorator';
 import { ResponseMessage } from '../common/decorators/response-message.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { BoardRolesGuard } from '../common/guard/board-roles.guard';
@@ -65,8 +66,9 @@ export class CardsController {
     @Param('boardId') boardId: string,
     @Param('cardId') cardId: string,
     @Body() dto: MoveCardDto,
+    @GetUser('sub') actorId: string,
   ) {
-    return this.cardsService.move(boardId, cardId, dto);
+    return this.cardsService.move(boardId, cardId, dto, actorId);
   }
 
   @Delete('cards/:cardId')
