@@ -21,7 +21,7 @@ import { MAIL_QUEUE } from './mail.constants';
           auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined,
         },
         defaults: {
-          from: cfg.from ?? 'Kanvas <no-reply@kanvas.local>',
+          from: cfg.from,
         },
         template: {
           dir: join(__dirname, 'templates'),
