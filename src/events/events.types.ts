@@ -4,6 +4,7 @@ import type {
   Comment,
   Label,
   List,
+  Notification,
 } from 'generated/prisma/client';
 
 export interface CardCreatedEvent {
@@ -97,4 +98,8 @@ export interface LabelDeletedEvent {
   boardId: string;
   labelId: string;
   actorId: string;
+}
+
+export interface NotificationCreatedEvent {
+  notification: Notification;
 }

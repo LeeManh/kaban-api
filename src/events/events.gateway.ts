@@ -32,6 +32,7 @@ import type {
   ListDeletedEvent,
   ListMovedEvent,
   ListUpdatedEvent,
+  NotificationCreatedEvent,
 } from './events.types';
 
 @WebSocketGateway({ cors: { origin: '*' } })
@@ -61,6 +62,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         throw new Error('token revoked');
 
       (client.data as { userId?: string }).userId = payload.sub;
+      // Tự join room cá nhân — nhận notification riêng của mình (không cần
+      // "joinBoard" thủ công như room board, vì đây gắn liền danh tính user).
+      await client.join(this.userRoom(payload.sub));
       this.logger.log(`Client connected: ${client.id} (user ${payload.sub})`);
     } catch {
       this.logger.warn(`Rejected socket ${client.id}: auth failed`);
@@ -180,12 +184,23 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.broadcast(payload.boardId, SOCKET_EVENT.LABEL_DELETED, payload);
   }
 
+  @OnEvent(APP_EVENT.NOTIFICATION_CREATED)
+  handleNotificationCreated(payload: NotificationCreatedEvent) {
+    this.server
+      .to(this.userRoom(payload.notification.userId))
+      .emit(SOCKET_EVENT.NOTIFICATION_CREATED, payload.notification);
+  }
+
   private broadcast(boardId: string, event: string, payload: unknown) {
     this.server.to(this.room(boardId)).emit(event, payload);
   }
 
   private room(boardId: string) {
     return `board_${boardId}`;
+  }
+
+  private userRoom(userId: string) {
+    return `user_${userId}`;
   }
 
   private extractToken(client: Socket): string | undefined {

@@ -29,6 +29,7 @@ import { ChecklistsModule } from './checklists/checklists.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { MailModule } from './mail/mail.module';
 import { EventsModule } from './events/events.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { EventsModule } from './events/events.module';
     AttachmentsModule,
     MailModule,
     EventsModule,
+    NotificationsModule,
   ],
   controllers: [],
   providers: [

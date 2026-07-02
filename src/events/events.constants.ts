@@ -13,6 +13,7 @@ export const APP_EVENT = {
   LABEL_CREATED: 'label.created',
   LABEL_UPDATED: 'label.updated',
   LABEL_DELETED: 'label.deleted',
+  NOTIFICATION_CREATED: 'notification.created',
 } as const;
 
 export const SOCKET_EVENT = {
@@ -32,4 +33,5 @@ export const SOCKET_EVENT = {
   LABEL_CREATED: 'labelCreated',
   LABEL_UPDATED: 'labelUpdated',
   LABEL_DELETED: 'labelDeleted',
+  NOTIFICATION_CREATED: 'notificationCreated',
 } as const;
