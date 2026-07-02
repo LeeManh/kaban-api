@@ -3,21 +3,11 @@ import { Job, Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from './mail.service';
 import { MAIL_JOB, MAIL_QUEUE } from './mail.constants';
-
-interface CardAssignedData {
-  to: string;
-  cardTitle: string;
-}
-
-interface DueReminderData {
-  cardId: string;
-}
-
-interface SendEmailData {
-  to: string;
-  subject: string;
-  html: string;
-}
+import type {
+  CardAssignedData,
+  DueReminderData,
+  SendEmailData,
+} from './mail.types';
 
 @Processor(MAIL_QUEUE)
 export class MailProcessor extends WorkerHost {
@@ -36,7 +26,8 @@ export class MailProcessor extends WorkerHost {
         await this.mail.sendMail({
           to,
           subject: `Bạn được giao thẻ: ${cardTitle}`,
-          html: `<p>Bạn vừa được giao thẻ <b>${cardTitle}</b> trên Kanvas.</p>`,
+          template: 'card-assigned',
+          context: { cardTitle },
         });
         break;
       }
@@ -59,15 +50,16 @@ export class MailProcessor extends WorkerHost {
           await this.queue.add(MAIL_JOB.SEND_EMAIL, {
             to: assignee.email,
             subject: `Nhắc hạn: ${card.title}`,
-            html: `<p>Thẻ <b>${card.title}</b> đã tới hạn.</p>`,
-          });
+            template: 'due-reminder',
+            context: { cardTitle: card.title },
+          } satisfies SendEmailData);
         }
         break;
       }
 
       case MAIL_JOB.SEND_EMAIL: {
-        const { to, subject, html } = job.data as SendEmailData;
-        await this.mail.sendMail({ to, subject, html });
+        const { to, subject, template, context } = job.data as SendEmailData;
+        await this.mail.sendMail({ to, subject, template, context });
         break;
       }
     }
