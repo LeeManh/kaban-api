@@ -3,7 +3,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
+import { APP_EVENT } from '../events/events.constants';
+import type {
+  ListCreatedEvent,
+  ListDeletedEvent,
+  ListMovedEvent,
+  ListUpdatedEvent,
+} from '../events/events.types';
 import { CreateListDto } from './dto/create-list.dto';
 import { UpdateListDto } from './dto/update-list.dto';
 import { MoveListDto } from './dto/move-list.dto';
@@ -12,9 +20,12 @@ const ORDER_STEP = 1000;
 
 @Injectable()
 export class ListsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
-  async create(boardId: string, dto: CreateListDto) {
+  async create(boardId: string, dto: CreateListDto, actorId: string) {
     const last = await this.prisma.list.findFirst({
       where: { boardId },
       orderBy: { order: 'desc' },
@@ -22,9 +33,17 @@ export class ListsService {
     });
     const order = (last?.order ?? 0) + ORDER_STEP;
 
-    return this.prisma.list.create({
+    const list = await this.prisma.list.create({
       data: { title: dto.title, order, boardId },
     });
+
+    this.eventEmitter.emit(APP_EVENT.LIST_CREATED, {
+      boardId,
+      list,
+      actorId,
+    } satisfies ListCreatedEvent);
+
+    return list;
   }
 
   findAll(boardId: string) {
@@ -34,15 +53,33 @@ export class ListsService {
     });
   }
 
-  async update(boardId: string, listId: string, dto: UpdateListDto) {
+  async update(
+    boardId: string,
+    listId: string,
+    dto: UpdateListDto,
+    actorId: string,
+  ) {
     await this.ensureListInBoard(boardId, listId);
-    return this.prisma.list.update({
+    const list = await this.prisma.list.update({
       where: { id: listId },
       data: dto,
     });
+
+    this.eventEmitter.emit(APP_EVENT.LIST_UPDATED, {
+      boardId,
+      list,
+      actorId,
+    } satisfies ListUpdatedEvent);
+
+    return list;
   }
 
-  async move(boardId: string, listId: string, dto: MoveListDto) {
+  async move(
+    boardId: string,
+    listId: string,
+    dto: MoveListDto,
+    actorId: string,
+  ) {
     await this.ensureListInBoard(boardId, listId);
 
     const { beforeId, afterId } = dto;
@@ -69,15 +106,31 @@ export class ListsService {
       order = (before as number) + ORDER_STEP; // chèn xuống cuối
     }
 
-    return this.prisma.list.update({
+    const list = await this.prisma.list.update({
       where: { id: listId },
       data: { order },
     });
+
+    this.eventEmitter.emit(APP_EVENT.LIST_MOVED, {
+      boardId,
+      listId: list.id,
+      order: list.order,
+      actorId,
+    } satisfies ListMovedEvent);
+
+    return list;
   }
 
-  async remove(boardId: string, listId: string) {
+  async remove(boardId: string, listId: string, actorId: string) {
     await this.ensureListInBoard(boardId, listId);
     await this.prisma.list.delete({ where: { id: listId } });
+
+    this.eventEmitter.emit(APP_EVENT.LIST_DELETED, {
+      boardId,
+      listId,
+      actorId,
+    } satisfies ListDeletedEvent);
+
     return { id: listId };
   }
 

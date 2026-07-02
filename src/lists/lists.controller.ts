@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Role } from 'generated/prisma/enums';
+import { GetUser } from '../common/decorators/get-user.decorator';
 import { ResponseMessage } from '../common/decorators/response-message.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { BoardRolesGuard } from '../common/guard/board-roles.guard';
@@ -25,8 +26,12 @@ export class ListsController {
   @Post()
   @Roles(Role.MEMBER)
   @ResponseMessage('Tạo list thành công')
-  create(@Param('boardId') boardId: string, @Body() dto: CreateListDto) {
-    return this.listsService.create(boardId, dto);
+  create(
+    @Param('boardId') boardId: string,
+    @Body() dto: CreateListDto,
+    @GetUser('sub') actorId: string,
+  ) {
+    return this.listsService.create(boardId, dto, actorId);
   }
 
   @Get()
@@ -43,8 +48,9 @@ export class ListsController {
     @Param('boardId') boardId: string,
     @Param('listId') listId: string,
     @Body() dto: UpdateListDto,
+    @GetUser('sub') actorId: string,
   ) {
-    return this.listsService.update(boardId, listId, dto);
+    return this.listsService.update(boardId, listId, dto, actorId);
   }
 
   @Patch(':listId/move')
@@ -54,14 +60,19 @@ export class ListsController {
     @Param('boardId') boardId: string,
     @Param('listId') listId: string,
     @Body() dto: MoveListDto,
+    @GetUser('sub') actorId: string,
   ) {
-    return this.listsService.move(boardId, listId, dto);
+    return this.listsService.move(boardId, listId, dto, actorId);
   }
 
   @Delete(':listId')
   @Roles(Role.ADMIN)
   @ResponseMessage('Xóa list thành công')
-  remove(@Param('boardId') boardId: string, @Param('listId') listId: string) {
-    return this.listsService.remove(boardId, listId);
+  remove(
+    @Param('boardId') boardId: string,
+    @Param('listId') listId: string,
+    @GetUser('sub') actorId: string,
+  ) {
+    return this.listsService.remove(boardId, listId, actorId);
   }
 }

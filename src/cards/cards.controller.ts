@@ -30,8 +30,9 @@ export class CardsController {
     @Param('boardId') boardId: string,
     @Param('listId') listId: string,
     @Body() dto: CreateCardDto,
+    @GetUser('sub') actorId: string,
   ) {
-    return this.cardsService.create(boardId, listId, dto);
+    return this.cardsService.create(boardId, listId, dto, actorId);
   }
 
   @Get('lists/:listId/cards')
@@ -55,8 +56,9 @@ export class CardsController {
     @Param('boardId') boardId: string,
     @Param('cardId') cardId: string,
     @Body() dto: UpdateCardDto,
+    @GetUser('sub') actorId: string,
   ) {
-    return this.cardsService.update(boardId, cardId, dto);
+    return this.cardsService.update(boardId, cardId, dto, actorId);
   }
 
   @Patch('cards/:cardId/move')
@@ -74,8 +76,12 @@ export class CardsController {
   @Delete('cards/:cardId')
   @Roles(Role.ADMIN)
   @ResponseMessage('Xóa card thành công')
-  remove(@Param('boardId') boardId: string, @Param('cardId') cardId: string) {
-    return this.cardsService.remove(boardId, cardId);
+  remove(
+    @Param('boardId') boardId: string,
+    @Param('cardId') cardId: string,
+    @GetUser('sub') actorId: string,
+  ) {
+    return this.cardsService.remove(boardId, cardId, actorId);
   }
 
   @Post('cards/:cardId/assignees/:userId')
@@ -85,8 +91,9 @@ export class CardsController {
     @Param('boardId') boardId: string,
     @Param('cardId') cardId: string,
     @Param('userId') userId: string,
+    @GetUser('sub') actorId: string,
   ) {
-    return this.cardsService.assignMember(boardId, cardId, userId);
+    return this.cardsService.assignMember(boardId, cardId, userId, actorId);
   }
 
   @Delete('cards/:cardId/assignees/:userId')
@@ -96,7 +103,8 @@ export class CardsController {
     @Param('boardId') boardId: string,
     @Param('cardId') cardId: string,
     @Param('userId') userId: string,
+    @GetUser('sub') actorId: string,
   ) {
-    return this.cardsService.unassignMember(boardId, cardId, userId);
+    return this.cardsService.unassignMember(boardId, cardId, userId, actorId);
   }
 }

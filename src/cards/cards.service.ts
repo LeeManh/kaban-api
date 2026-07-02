@@ -11,6 +11,12 @@ import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MAIL_JOB, MAIL_QUEUE } from '../mail/mail.constants';
 import { APP_EVENT } from '../events/events.constants';
+import type {
+  CardAssigneeChangedEvent,
+  CardCreatedEvent,
+  CardDeletedEvent,
+  CardUpdatedEvent,
+} from '../events/events.types';
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { MoveCardDto } from './dto/move-card.dto';
@@ -28,7 +34,12 @@ export class CardsService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(boardId: string, listId: string, dto: CreateCardDto) {
+  async create(
+    boardId: string,
+    listId: string,
+    dto: CreateCardDto,
+    actorId: string,
+  ) {
     await this.ensureListInBoard(boardId, listId);
 
     const last = await this.prisma.card.findFirst({
@@ -50,6 +61,13 @@ export class CardsService {
     });
 
     await this.scheduleDueReminder(card.id, card.dueDate);
+
+    this.eventEmitter.emit(APP_EVENT.CARD_CREATED, {
+      boardId,
+      card,
+      actorId,
+    } satisfies CardCreatedEvent);
+
     return card;
   }
 
@@ -72,12 +90,24 @@ export class CardsService {
     return card;
   }
 
-  async update(boardId: string, cardId: string, dto: UpdateCardDto) {
+  async update(
+    boardId: string,
+    cardId: string,
+    dto: UpdateCardDto,
+    actorId: string,
+  ) {
     await this.getCardInBoard(boardId, cardId);
     const { version, ...data } = dto;
     const card = await this.updateWithVersion(cardId, version, data);
 
     await this.scheduleDueReminder(card.id, card.dueDate);
+
+    this.eventEmitter.emit(APP_EVENT.CARD_UPDATED, {
+      boardId,
+      card,
+      actorId,
+    } satisfies CardUpdatedEvent);
+
     return card;
   }
 
@@ -103,10 +133,18 @@ export class CardsService {
     }
   }
 
-  async remove(boardId: string, cardId: string) {
-    await this.getCardInBoard(boardId, cardId);
+  async remove(boardId: string, cardId: string, actorId: string) {
+    const card = await this.getCardInBoard(boardId, cardId);
     await this.prisma.card.delete({ where: { id: cardId } });
     await this.scheduleDueReminder(cardId, null);
+
+    this.eventEmitter.emit(APP_EVENT.CARD_DELETED, {
+      boardId,
+      cardId,
+      listId: card.listId,
+      actorId,
+    } satisfies CardDeletedEvent);
+
     return { id: cardId };
   }
 
@@ -214,7 +252,12 @@ export class CardsService {
     return neighbor.order;
   }
 
-  async assignMember(boardId: string, cardId: string, userId: string) {
+  async assignMember(
+    boardId: string,
+    cardId: string,
+    userId: string,
+    actorId: string,
+  ) {
     const card = await this.getCardInBoard(boardId, cardId);
     await this.ensureBoardMember(boardId, userId);
 
@@ -239,15 +282,37 @@ export class CardsService {
       );
     }
 
+    this.eventEmitter.emit(APP_EVENT.CARD_ASSIGNEE_CHANGED, {
+      boardId,
+      cardId,
+      userId,
+      action: 'assigned',
+      actorId,
+    } satisfies CardAssigneeChangedEvent);
+
     return { cardId, userId };
   }
 
-  async unassignMember(boardId: string, cardId: string, userId: string) {
+  async unassignMember(
+    boardId: string,
+    cardId: string,
+    userId: string,
+    actorId: string,
+  ) {
     await this.getCardInBoard(boardId, cardId);
     await this.prisma.card.update({
       where: { id: cardId },
       data: { assignees: { disconnect: { id: userId } } },
     });
+
+    this.eventEmitter.emit(APP_EVENT.CARD_ASSIGNEE_CHANGED, {
+      boardId,
+      cardId,
+      userId,
+      action: 'unassigned',
+      actorId,
+    } satisfies CardAssigneeChangedEvent);
+
     return { cardId, userId };
   }
 

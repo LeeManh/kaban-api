@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
+import { APP_EVENT } from '../events/events.constants';
+import type { ChecklistItemToggledEvent } from '../events/events.types';
 import { CreateChecklistDto } from './dto/create-checklist.dto';
 import { UpdateChecklistDto } from './dto/update-checklist.dto';
 import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
@@ -9,7 +12,10 @@ const ORDER_STEP = 1000;
 
 @Injectable()
 export class ChecklistsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async create(boardId: string, cardId: string, dto: CreateChecklistDto) {
     await this.ensureCardInBoard(boardId, cardId);
@@ -80,12 +86,20 @@ export class ChecklistsService {
     });
   }
 
-  async toggleItem(boardId: string, itemId: string) {
+  async toggleItem(boardId: string, itemId: string, actorId: string) {
     const item = await this.getItemInBoard(boardId, itemId);
-    return this.prisma.checklistItem.update({
+    const updated = await this.prisma.checklistItem.update({
       where: { id: itemId },
       data: { isDone: !item.isDone },
     });
+
+    this.eventEmitter.emit(APP_EVENT.CHECKLIST_ITEM_TOGGLED, {
+      boardId,
+      item: updated,
+      actorId,
+    } satisfies ChecklistItemToggledEvent);
+
+    return updated;
   }
 
   async removeItem(boardId: string, itemId: string) {

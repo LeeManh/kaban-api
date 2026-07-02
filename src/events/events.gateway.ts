@@ -16,11 +16,23 @@ import { JwtPayload } from 'src/auth/types/jwt-payload.type';
 import { jwtConfig } from 'src/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RedisService } from 'src/redis/redis.service';
-import {
-  APP_EVENT,
-  SOCKET_EVENT,
-  type CardMovedEvent,
-} from './events.constants';
+import { APP_EVENT, SOCKET_EVENT } from './events.constants';
+import type {
+  CardAssigneeChangedEvent,
+  CardCreatedEvent,
+  CardDeletedEvent,
+  CardMovedEvent,
+  CardUpdatedEvent,
+  ChecklistItemToggledEvent,
+  CommentAddedEvent,
+  LabelCreatedEvent,
+  LabelDeletedEvent,
+  LabelUpdatedEvent,
+  ListCreatedEvent,
+  ListDeletedEvent,
+  ListMovedEvent,
+  ListUpdatedEvent,
+} from './events.types';
 
 @WebSocketGateway({ cors: { origin: '*' } })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -90,11 +102,86 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { ok: true };
   }
 
+  @OnEvent(APP_EVENT.CARD_CREATED)
+  handleCardCreated(payload: CardCreatedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.CARD_CREATED, payload);
+  }
+
+  @OnEvent(APP_EVENT.CARD_UPDATED)
+  handleCardUpdated(payload: CardUpdatedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.CARD_UPDATED, payload);
+  }
+
   @OnEvent(APP_EVENT.CARD_MOVED)
   handleCardMoved(payload: CardMovedEvent) {
-    this.server
-      .to(this.room(payload.boardId))
-      .emit(SOCKET_EVENT.CARD_MOVED, payload);
+    this.broadcast(payload.boardId, SOCKET_EVENT.CARD_MOVED, payload);
+  }
+
+  @OnEvent(APP_EVENT.CARD_DELETED)
+  handleCardDeleted(payload: CardDeletedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.CARD_DELETED, payload);
+  }
+
+  @OnEvent(APP_EVENT.LIST_CREATED)
+  handleListCreated(payload: ListCreatedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.LIST_CREATED, payload);
+  }
+
+  @OnEvent(APP_EVENT.LIST_UPDATED)
+  handleListUpdated(payload: ListUpdatedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.LIST_UPDATED, payload);
+  }
+
+  @OnEvent(APP_EVENT.LIST_MOVED)
+  handleListMoved(payload: ListMovedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.LIST_MOVED, payload);
+  }
+
+  @OnEvent(APP_EVENT.LIST_DELETED)
+  handleListDeleted(payload: ListDeletedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.LIST_DELETED, payload);
+  }
+
+  @OnEvent(APP_EVENT.COMMENT_ADDED)
+  handleCommentAdded(payload: CommentAddedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.COMMENT_ADDED, payload);
+  }
+
+  @OnEvent(APP_EVENT.CHECKLIST_ITEM_TOGGLED)
+  handleChecklistItemToggled(payload: ChecklistItemToggledEvent) {
+    this.broadcast(
+      payload.boardId,
+      SOCKET_EVENT.CHECKLIST_ITEM_TOGGLED,
+      payload,
+    );
+  }
+
+  @OnEvent(APP_EVENT.CARD_ASSIGNEE_CHANGED)
+  handleCardAssigneeChanged(payload: CardAssigneeChangedEvent) {
+    this.broadcast(
+      payload.boardId,
+      SOCKET_EVENT.CARD_ASSIGNEE_CHANGED,
+      payload,
+    );
+  }
+
+  @OnEvent(APP_EVENT.LABEL_CREATED)
+  handleLabelCreated(payload: LabelCreatedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.LABEL_CREATED, payload);
+  }
+
+  @OnEvent(APP_EVENT.LABEL_UPDATED)
+  handleLabelUpdated(payload: LabelUpdatedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.LABEL_UPDATED, payload);
+  }
+
+  @OnEvent(APP_EVENT.LABEL_DELETED)
+  handleLabelDeleted(payload: LabelDeletedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.LABEL_DELETED, payload);
+  }
+
+  private broadcast(boardId: string, event: string, payload: unknown) {
+    this.server.to(this.room(boardId)).emit(event, payload);
   }
 
   private room(boardId: string) {

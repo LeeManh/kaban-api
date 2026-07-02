@@ -3,8 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Role } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { APP_EVENT } from '../events/events.constants';
+import type { CommentAddedEvent } from '../events/events.types';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 
@@ -12,7 +15,10 @@ const AUTHOR_SELECT = { select: { id: true, name: true, email: true } };
 
 @Injectable()
 export class CommentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async create(
     boardId: string,
@@ -21,9 +27,18 @@ export class CommentsService {
     dto: CreateCommentDto,
   ) {
     await this.ensureCardInBoard(boardId, cardId);
-    return this.prisma.comment.create({
+    const comment = await this.prisma.comment.create({
       data: { content: dto.content, cardId, authorId },
+      include: { author: AUTHOR_SELECT },
     });
+
+    this.eventEmitter.emit(APP_EVENT.COMMENT_ADDED, {
+      boardId,
+      comment,
+      actorId: authorId,
+    } satisfies CommentAddedEvent);
+
+    return comment;
   }
 
   async findAll(boardId: string, cardId: string) {

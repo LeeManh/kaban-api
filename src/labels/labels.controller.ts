@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Role } from 'generated/prisma/enums';
+import { GetUser } from '../common/decorators/get-user.decorator';
 import { ResponseMessage } from '../common/decorators/response-message.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { BoardRolesGuard } from '../common/guard/board-roles.guard';
@@ -24,8 +25,12 @@ export class LabelsController {
   @Post()
   @Roles(Role.MEMBER)
   @ResponseMessage('Tạo label thành công')
-  create(@Param('boardId') boardId: string, @Body() dto: CreateLabelDto) {
-    return this.labelsService.create(boardId, dto);
+  create(
+    @Param('boardId') boardId: string,
+    @Body() dto: CreateLabelDto,
+    @GetUser('sub') actorId: string,
+  ) {
+    return this.labelsService.create(boardId, dto, actorId);
   }
 
   @Get()
@@ -42,14 +47,19 @@ export class LabelsController {
     @Param('boardId') boardId: string,
     @Param('labelId') labelId: string,
     @Body() dto: UpdateLabelDto,
+    @GetUser('sub') actorId: string,
   ) {
-    return this.labelsService.update(boardId, labelId, dto);
+    return this.labelsService.update(boardId, labelId, dto, actorId);
   }
 
   @Delete(':labelId')
   @Roles(Role.ADMIN)
   @ResponseMessage('Xóa label thành công')
-  remove(@Param('boardId') boardId: string, @Param('labelId') labelId: string) {
-    return this.labelsService.remove(boardId, labelId);
+  remove(
+    @Param('boardId') boardId: string,
+    @Param('labelId') labelId: string,
+    @GetUser('sub') actorId: string,
+  ) {
+    return this.labelsService.remove(boardId, labelId, actorId);
   }
 }

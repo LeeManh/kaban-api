@@ -1,17 +1,35 @@
 export const APP_EVENT = {
+  CARD_CREATED: 'card.created',
+  CARD_UPDATED: 'card.updated',
   CARD_MOVED: 'card.moved',
+  CARD_DELETED: 'card.deleted',
+  LIST_CREATED: 'list.created',
+  LIST_UPDATED: 'list.updated',
+  LIST_MOVED: 'list.moved',
+  LIST_DELETED: 'list.deleted',
+  COMMENT_ADDED: 'comment.added',
+  CHECKLIST_ITEM_TOGGLED: 'checklistItem.toggled',
+  CARD_ASSIGNEE_CHANGED: 'card.assigneeChanged',
+  LABEL_CREATED: 'label.created',
+  LABEL_UPDATED: 'label.updated',
+  LABEL_DELETED: 'label.deleted',
 } as const;
 
 export const SOCKET_EVENT = {
   JOIN_BOARD: 'joinBoard',
   LEAVE_BOARD: 'leaveBoard',
+  CARD_CREATED: 'cardCreated',
+  CARD_UPDATED: 'cardUpdated',
   CARD_MOVED: 'cardMoved',
+  CARD_DELETED: 'cardDeleted',
+  LIST_CREATED: 'listCreated',
+  LIST_UPDATED: 'listUpdated',
+  LIST_MOVED: 'listMoved',
+  LIST_DELETED: 'listDeleted',
+  COMMENT_ADDED: 'commentAdded',
+  CHECKLIST_ITEM_TOGGLED: 'checklistItemToggled',
+  CARD_ASSIGNEE_CHANGED: 'cardAssigneeChanged',
+  LABEL_CREATED: 'labelCreated',
+  LABEL_UPDATED: 'labelUpdated',
+  LABEL_DELETED: 'labelDeleted',
 } as const;
-
-export interface CardMovedEvent {
-  boardId: string;
-  cardId: string;
-  listId: string;
-  order: number;
-  actorId: string;
-}
