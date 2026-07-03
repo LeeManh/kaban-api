@@ -49,7 +49,7 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.password, user.password);
     if (!ok) throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
 
-    return this.issueTokens(user.id, user.email);
+    return this.issueTokens(user.id, user.email, dto.rememberMe ?? false);
   }
 
   async refresh(refreshToken: string) {
@@ -76,7 +76,13 @@ export class AuthService {
         where: { id: stored.id },
         data: { revokedAt: new Date() },
       });
-      return this.issueTokens(payload.sub, payload.email);
+
+      return this.issueTokens(
+        payload.sub,
+        payload.email,
+        payload.rememberMe ?? false,
+        tx,
+      );
     });
   }
 
@@ -102,9 +108,13 @@ export class AuthService {
   private async issueTokens(
     userId: string,
     email: string,
+    rememberMe = false,
     tx: Prisma.TransactionClient = this.prisma,
   ) {
-    const payload: JwtPayload = { sub: userId, email };
+    const payload: JwtPayload = { sub: userId, email, rememberMe };
+    const refreshExpiresIn = rememberMe
+      ? this.jwtCfg.refreshRememberExpiresIn
+      : this.jwtCfg.refreshExpiresIn;
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {
@@ -114,7 +124,7 @@ export class AuthService {
       }),
       this.jwt.signAsync(payload, {
         secret: this.jwtCfg.refreshSecret,
-        expiresIn: this.jwtCfg.refreshExpiresIn,
+        expiresIn: refreshExpiresIn,
       }),
     ]);
 
