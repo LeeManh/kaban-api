@@ -37,11 +37,17 @@ export class BoardsController {
     return this.boardsService.findAllForUser(userId);
   }
 
+  @Get('recently-viewed')
+  @ResponseMessage('Lấy danh sách board đã xem gần đây thành công')
+  findRecentlyViewed(@GetUser('sub') userId: string) {
+    return this.boardsService.findRecentlyViewed(userId);
+  }
+
   @Get(':boardId')
   @Roles(Role.VIEWER)
   @ResponseMessage('Lấy chi tiết board thành công')
-  findOne(@Param('boardId') boardId: string) {
-    return this.boardsService.findOne(boardId);
+  findOne(@Param('boardId') boardId: string, @GetUser('sub') userId: string) {
+    return this.boardsService.findOne(boardId, userId);
   }
 
   @Get(':boardId/members')

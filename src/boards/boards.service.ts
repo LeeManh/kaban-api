@@ -38,7 +38,7 @@ export class BoardsService {
     });
   }
 
-  async findOne(boardId: string) {
+  async findOne(boardId: string, userId: string) {
     const board = await this.prisma.board.findUnique({
       where: { id: boardId },
       include: {
@@ -52,7 +52,26 @@ export class BoardsService {
     });
 
     if (!board) throw new NotFoundException('Không tìm thấy board');
+
+    await this.prisma.boardView.upsert({
+      where: { userId_boardId: { userId, boardId } },
+      update: { viewedAt: new Date() },
+      create: { userId, boardId },
+    });
+
     return board;
+  }
+
+  findRecentlyViewed(userId: string, limit = 10) {
+    return this.prisma.boardView.findMany({
+      where: { userId },
+      orderBy: { viewedAt: 'desc' },
+      take: limit,
+      select: {
+        viewedAt: true,
+        board: { select: { id: true, name: true, createdAt: true } },
+      },
+    });
   }
 
   async findMembers(boardId: string) {

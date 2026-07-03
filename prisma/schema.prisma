@@ -49,6 +49,7 @@ model User {
   attachments   Attachment[]
   assignedCards Card[]         @relation("CardAssignees")
   notifications Notification[]
+  boardViews    BoardView[]
 
   @@map("users")
 }
@@ -74,6 +75,7 @@ model Board {
   members   BoardMember[]
   lists     List[]
   labels    Label[]
+  views     BoardView[]
   createdAt DateTime      @default(now()) @map("created_at")
 
   @@map("boards")
@@ -196,7 +198,7 @@ model Attachment {
 
 model Notification {
   id        String           @id @default(cuid())
-  userId    String           @map("user_id") 
+  userId    String           @map("user_id")
   type      NotificationType
   message   String
   link      String? // deep link tới card/board liên quan
@@ -206,4 +208,16 @@ model Notification {
 
   @@index([userId, isRead, createdAt])
   @@map("notifications")
+}
+
+model BoardView {
+  userId   String   @map("user_id")
+  boardId  String   @map("board_id")
+  viewedAt DateTime @default(now()) @map("viewed_at")
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board    Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@id([userId, boardId])
+  @@index([userId, viewedAt])
+  @@map("board_views")
 }
