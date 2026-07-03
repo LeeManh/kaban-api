@@ -6,6 +6,7 @@ export const validationSchema = Joi.object({
     .valid('development', 'production', 'test')
     .default('development'),
   PORT: Joi.number().default(3000),
+  FRONTEND_URL: Joi.string().uri(),
 
   // Database (Prisma)
   DATABASE_URL: Joi.string().uri().required(),

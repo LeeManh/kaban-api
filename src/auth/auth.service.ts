@@ -4,17 +4,25 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
 import { type ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { jwtConfig } from 'src/config';
+import { Queue } from 'bullmq';
+import { appConfig, jwtConfig } from 'src/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtPayload } from './types/jwt-payload.type';
 import { Prisma } from 'generated/prisma/client';
 import { RedisService } from 'src/redis/redis.service';
+import { MAIL_JOB, MAIL_QUEUE } from 'src/mail/mail.constants';
+import type { PasswordResetData } from 'src/mail/mail.types';
+
+const RESET_TOKEN_TTL_SECONDS = 30 * 60;
 
 @Injectable()
 export class AuthService {
@@ -23,7 +31,10 @@ export class AuthService {
     private readonly jwt: JwtService,
     @Inject(jwtConfig.KEY)
     private readonly jwtCfg: ConfigType<typeof jwtConfig>,
-    private readonly blacklist: RedisService,
+    @Inject(appConfig.KEY)
+    private readonly appCfg: ConfigType<typeof appConfig>,
+    private readonly redis: RedisService,
+    @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -94,7 +105,7 @@ export class AuthService {
     });
 
     if (user.jti && user.exp) {
-      await this.blacklist.blacklist(user.jti, user.exp);
+      await this.redis.blacklist(user.jti, user.exp);
     }
   }
 
@@ -103,6 +114,52 @@ export class AuthService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      select: { id: true, email: true },
+    });
+
+    if (user) {
+      const rawToken = randomBytes(32).toString('hex');
+      const tokenHash = this.hashToken(rawToken);
+      await this.redis.storeResetToken(
+        tokenHash,
+        user.id,
+        RESET_TOKEN_TTL_SECONDS,
+      );
+
+      const resetUrl = `${this.appCfg.frontendUrl}/reset-password?token=${rawToken}`;
+      await this.mailQueue.add(MAIL_JOB.PASSWORD_RESET, {
+        to: user.email,
+        resetUrl,
+      } satisfies PasswordResetData);
+    }
+
+    return {
+      message: 'Nếu email tồn tại, chúng tôi đã gửi hướng dẫn đặt lại mật khẩu',
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tokenHash = this.hashToken(dto.token);
+    const userId = await this.redis.consumeResetToken(tokenHash);
+    if (!userId)
+      throw new UnauthorizedException(
+        'Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn',
+      );
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: passwordHash },
+    });
+
+    await this.logoutAll(userId);
+
+    return { message: 'Đặt lại mật khẩu thành công' };
   }
 
   private async issueTokens(

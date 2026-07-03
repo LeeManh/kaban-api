@@ -7,6 +7,8 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { GetUser } from 'src/common/decorators/get-user.decorator';
 import { type JwtPayload } from './types/jwt-payload.type';
 import { LogoutDto } from './dto/logout.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResponseMessage } from 'src/common/decorators/response-message.decorator';
 
 @Controller('auth')
@@ -46,5 +48,19 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   logoutAll(@GetUser('sub') userId: string) {
     return this.authService.logoutAll(userId);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 }

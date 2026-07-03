@@ -6,6 +6,7 @@ import { MAIL_JOB, MAIL_QUEUE } from './mail.constants';
 import type {
   CardAssignedData,
   DueReminderData,
+  PasswordResetData,
   SendEmailData,
 } from './mail.types';
 
@@ -60,6 +61,17 @@ export class MailProcessor extends WorkerHost {
       case MAIL_JOB.SEND_EMAIL: {
         const { to, subject, template, context } = job.data as SendEmailData;
         await this.mail.sendMail({ to, subject, template, context });
+        break;
+      }
+
+      case MAIL_JOB.PASSWORD_RESET: {
+        const { to, resetUrl } = job.data as PasswordResetData;
+        await this.mail.sendMail({
+          to,
+          subject: 'Đặt lại mật khẩu Kanvas',
+          template: 'forgot-password',
+          context: { resetUrl },
+        });
         break;
       }
     }

@@ -4,4 +4,5 @@ export const MAIL_JOB = {
   CARD_ASSIGNED: 'card-assigned',
   DUE_REMINDER: 'due-reminder',
   SEND_EMAIL: 'send-email',
+  PASSWORD_RESET: 'password-reset',
 } as const;

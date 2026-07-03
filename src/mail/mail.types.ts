@@ -13,3 +13,8 @@ export interface SendEmailData {
   template: string;
   context: Record<string, unknown>;
 }
+
+export interface PasswordResetData {
+  to: string;
+  resetUrl: string;
+}
