@@ -14,6 +14,10 @@ async function bootstrap() {
   const config = app.get<ConfigType<typeof appConfig>>(appConfig.KEY);
 
   app.setGlobalPrefix('api');
+  app.enableCors({
+    origin: process.env.FRONTEND_URL,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
