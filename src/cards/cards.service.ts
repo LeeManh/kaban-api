@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -25,12 +26,29 @@ const ORDER_STEP = 1000;
 
 const LABEL_SELECT = { select: { id: true, name: true, color: true } };
 const ASSIGNEE_SELECT = { select: { id: true, name: true, email: true } };
-const COUNT_SELECT = {
-  select: { comments: true, attachments: true, checklists: true },
+const COUNT_SELECT = { select: { comments: true, attachments: true } };
+const CHECKLIST_ITEMS_SELECT = {
+  select: { items: { select: { isDone: true } } },
 };
+
+type CardWithChecklists = { checklists: { items: { isDone: boolean }[] }[] };
+
+function withChecklistProgress<T extends CardWithChecklists>(card: T) {
+  const { checklists, ...rest } = card;
+  const items = checklists.flatMap((c) => c.items);
+  return {
+    ...rest,
+    checklistProgress: {
+      done: items.filter((i) => i.isDone).length,
+      total: items.length,
+    },
+  };
+}
 
 @Injectable()
 export class CardsService {
+  private readonly logger = new Logger(CardsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
@@ -63,7 +81,11 @@ export class CardsService {
       },
     });
 
-    await this.scheduleDueReminder(card.id, card.dueDate);
+    try {
+      await this.scheduleDueReminder(card.id, card.dueDate);
+    } catch (err) {
+      this.logger.error('Không thể lên lịch nhắc hạn cho card', err);
+    }
 
     this.eventEmitter.emit(APP_EVENT.CARD_CREATED, {
       boardId,
@@ -76,15 +98,17 @@ export class CardsService {
 
   async findAll(boardId: string, listId: string) {
     await this.ensureListInBoard(boardId, listId);
-    return this.prisma.card.findMany({
+    const cards = await this.prisma.card.findMany({
       where: { listId },
       orderBy: { order: 'asc' },
       include: {
         labels: LABEL_SELECT,
         assignees: ASSIGNEE_SELECT,
         _count: COUNT_SELECT,
+        checklists: CHECKLIST_ITEMS_SELECT,
       },
     });
+    return cards.map(withChecklistProgress);
   }
 
   async findOne(boardId: string, cardId: string) {
@@ -94,11 +118,12 @@ export class CardsService {
         labels: LABEL_SELECT,
         assignees: ASSIGNEE_SELECT,
         _count: COUNT_SELECT,
+        checklists: CHECKLIST_ITEMS_SELECT,
       },
     });
     if (!card)
       throw new NotFoundException('Không tìm thấy card trong board này');
-    return card;
+    return withChecklistProgress(card);
   }
 
   async update(
@@ -111,7 +136,11 @@ export class CardsService {
     const { version, ...data } = dto;
     const card = await this.updateWithVersion(cardId, version, data);
 
-    await this.scheduleDueReminder(card.id, card.dueDate);
+    try {
+      await this.scheduleDueReminder(card.id, card.dueDate);
+    } catch (err) {
+      this.logger.error('Không thể lên lịch nhắc hạn cho card', err);
+    }
 
     this.eventEmitter.emit(APP_EVENT.CARD_UPDATED, {
       boardId,
@@ -147,7 +176,11 @@ export class CardsService {
   async remove(boardId: string, cardId: string, actorId: string) {
     const card = await this.getCardInBoard(boardId, cardId);
     await this.prisma.card.delete({ where: { id: cardId } });
-    await this.scheduleDueReminder(cardId, null);
+    try {
+      await this.scheduleDueReminder(cardId, null);
+    } catch (err) {
+      this.logger.error('Không thể huỷ lịch nhắc hạn cho card', err);
+    }
 
     this.eventEmitter.emit(APP_EVENT.CARD_DELETED, {
       boardId,
