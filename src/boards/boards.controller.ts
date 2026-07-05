@@ -16,6 +16,7 @@ import { BoardRolesGuard } from '../common/guard/board-roles.guard';
 import { BoardsService } from './boards.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
+import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
@@ -92,6 +93,16 @@ export class BoardsController {
   @ResponseMessage('Cập nhật board thành công')
   update(@Param('boardId') boardId: string, @Body() dto: UpdateBoardDto) {
     return this.boardsService.update(boardId, dto);
+  }
+
+  @Post(':boardId/background/presign')
+  @Roles(Role.ADMIN)
+  @ResponseMessage('Tạo URL upload ảnh nền thành công')
+  presignBackground(
+    @Param('boardId') boardId: string,
+    @Body() dto: PresignBoardBackgroundDto,
+  ) {
+    return this.boardsService.presignBackground(boardId, dto);
   }
 
   @Post(':boardId/star')

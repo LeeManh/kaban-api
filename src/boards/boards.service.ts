@@ -5,17 +5,25 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Role } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
+import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 
+const BACKGROUND_KEY_PREFIX = 'boards/';
+
 @Injectable()
 export class BoardsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async create(userId: string, dto: CreateBoardDto) {
     return this.prisma.$transaction(async (tx) => {
@@ -45,11 +53,14 @@ export class BoardsService {
       },
     });
 
-    return boards.map(({ stars, members, ...board }) => ({
-      ...board,
-      members: members.map((m) => m.user),
-      isStarred: stars.length > 0,
-    }));
+    return Promise.all(
+      boards.map(async ({ stars, members, ...board }) => ({
+        ...board,
+        background: await this.resolveBackground(board.background),
+        members: members.map((m) => m.user),
+        isStarred: stars.length > 0,
+      })),
+    );
   }
 
   async findOne(boardId: string, userId: string) {
@@ -76,9 +87,27 @@ export class BoardsService {
     const { stars, members, ...rest } = board;
     return {
       ...rest,
+      background: await this.resolveBackground(rest.background),
       isStarred: stars.length > 0,
       members: members.map((m) => m.user),
     };
+  }
+
+  async presignBackground(boardId: string, dto: PresignBoardBackgroundDto) {
+    await this.ensureExists(boardId);
+
+    const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
+    const key = `${BACKGROUND_KEY_PREFIX}${boardId}/${randomUUID()}-${safeName}`;
+    const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
+
+    return { key, uploadUrl };
+  }
+
+  private resolveBackground(background: string) {
+    if (background.startsWith(BACKGROUND_KEY_PREFIX)) {
+      return this.storage.getDownloadUrl(background);
+    }
+    return background;
   }
 
   async starBoard(boardId: string, userId: string) {
