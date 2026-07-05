@@ -94,6 +94,26 @@ export class BoardsController {
     return this.boardsService.update(boardId, dto);
   }
 
+  @Post(':boardId/star')
+  @Roles(Role.VIEWER)
+  @ResponseMessage('Đánh dấu yêu thích board thành công')
+  starBoard(
+    @Param('boardId') boardId: string,
+    @GetUser('sub') userId: string,
+  ) {
+    return this.boardsService.starBoard(boardId, userId);
+  }
+
+  @Delete(':boardId/star')
+  @Roles(Role.VIEWER)
+  @ResponseMessage('Bỏ đánh dấu yêu thích board thành công')
+  unstarBoard(
+    @Param('boardId') boardId: string,
+    @GetUser('sub') userId: string,
+  ) {
+    return this.boardsService.unstarBoard(boardId, userId);
+  }
+
   @Delete(':boardId/members/me')
   @Roles(Role.VIEWER)
   @ResponseMessage('Rời board thành công')

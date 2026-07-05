@@ -31,11 +31,25 @@ export class BoardsService {
     });
   }
 
-  findAllForUser(userId: string) {
-    return this.prisma.board.findMany({
+  async findAllForUser(userId: string) {
+    const boards = await this.prisma.board.findMany({
       where: { members: { some: { userId } } },
       orderBy: { createdAt: 'desc' },
+      include: {
+        members: {
+          select: {
+            user: { select: { id: true, email: true, name: true } },
+          },
+        },
+        stars: { where: { userId }, select: { userId: true } },
+      },
     });
+
+    return boards.map(({ stars, members, ...board }) => ({
+      ...board,
+      members: members.map((m) => m.user),
+      isStarred: stars.length > 0,
+    }));
   }
 
   async findOne(boardId: string, userId: string) {
@@ -44,10 +58,10 @@ export class BoardsService {
       include: {
         members: {
           select: {
-            role: true,
             user: { select: { id: true, email: true, name: true } },
           },
         },
+        stars: { where: { userId }, select: { userId: true } },
       },
     });
 
@@ -59,7 +73,28 @@ export class BoardsService {
       create: { userId, boardId },
     });
 
-    return board;
+    const { stars, members, ...rest } = board;
+    return {
+      ...rest,
+      isStarred: stars.length > 0,
+      members: members.map((m) => m.user),
+    };
+  }
+
+  async starBoard(boardId: string, userId: string) {
+    await this.ensureExists(boardId);
+    await this.prisma.boardStar.upsert({
+      where: { userId_boardId: { userId, boardId } },
+      update: {},
+      create: { userId, boardId },
+    });
+    return { boardId, isStarred: true };
+  }
+
+  async unstarBoard(boardId: string, userId: string) {
+    await this.ensureExists(boardId);
+    await this.prisma.boardStar.deleteMany({ where: { userId, boardId } });
+    return { boardId, isStarred: false };
   }
 
   findRecentlyViewed(userId: string, limit = 10) {

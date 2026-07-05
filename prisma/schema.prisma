@@ -50,6 +50,7 @@ model User {
   assignedCards Card[]         @relation("CardAssignees")
   notifications Notification[]
   boardViews    BoardView[]
+  boardStars    BoardStar[]
 
   @@map("users")
 }
@@ -68,15 +69,17 @@ model RefreshToken {
 }
 
 model Board {
-  id        String        @id @default(cuid())
-  name      String
-  ownerId   String        @map("owner_id")
-  owner     User          @relation("BoardOwner", fields: [ownerId], references: [id])
-  members   BoardMember[]
-  lists     List[]
-  labels    Label[]
-  views     BoardView[]
-  createdAt DateTime      @default(now()) @map("created_at")
+  id         String        @id @default(cuid())
+  name       String
+  background String?
+  ownerId    String        @map("owner_id")
+  owner      User          @relation("BoardOwner", fields: [ownerId], references: [id])
+  members    BoardMember[]
+  lists      List[]
+  labels     Label[]
+  views      BoardView[]
+  stars      BoardStar[]
+  createdAt  DateTime      @default(now()) @map("created_at")
 
   @@map("boards")
 }
@@ -221,4 +224,16 @@ model BoardView {
   @@id([userId, boardId])
   @@index([userId, viewedAt])
   @@map("board_views")
+}
+
+model BoardStar {
+  userId    String   @map("user_id")
+  boardId   String   @map("board_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@id([userId, boardId])
+  @@index([userId])
+  @@map("board_stars")
 }
