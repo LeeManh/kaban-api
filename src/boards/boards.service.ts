@@ -20,7 +20,7 @@ export class BoardsService {
   async create(userId: string, dto: CreateBoardDto) {
     return this.prisma.$transaction(async (tx) => {
       const board = await tx.board.create({
-        data: { name: dto.name, ownerId: userId },
+        data: { name: dto.name, background: dto.background, ownerId: userId },
       });
 
       await tx.boardMember.create({

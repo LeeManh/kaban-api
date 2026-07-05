@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class CreateBoardDto {
   @IsString()
@@ -6,8 +6,8 @@ export class CreateBoardDto {
   @MaxLength(100)
   name!: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(255)
-  background?: string;
+  background!: string;
 }

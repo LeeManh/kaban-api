@@ -71,7 +71,7 @@ model RefreshToken {
 model Board {
   id         String        @id @default(cuid())
   name       String
-  background String?
+  background String
   ownerId    String        @map("owner_id")
   owner      User          @relation("BoardOwner", fields: [ownerId], references: [id])
   members    BoardMember[]
