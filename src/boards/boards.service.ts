@@ -39,25 +39,24 @@ export class BoardsService {
     });
   }
 
-  async findAllForUser(userId: string) {
+  async findAllForUser(userId: string, search?: string) {
     const boards = await this.prisma.board.findMany({
-      where: { members: { some: { userId } } },
+      where: {
+        members: { some: { userId } },
+        ...(search && {
+          name: { contains: search, mode: 'insensitive' },
+        }),
+      },
       orderBy: { createdAt: 'desc' },
       include: {
-        members: {
-          select: {
-            user: { select: { id: true, email: true, name: true } },
-          },
-        },
         stars: { where: { userId }, select: { userId: true } },
       },
     });
 
     return Promise.all(
-      boards.map(async ({ stars, members, ...board }) => ({
+      boards.map(async ({ stars, ...board }) => ({
         ...board,
         background: await this.resolveBackground(board.background),
-        members: members.map((m) => m.user),
         isStarred: stars.length > 0,
       })),
     );

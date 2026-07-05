@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Role } from 'generated/prisma/enums';
@@ -34,8 +35,8 @@ export class BoardsController {
 
   @Get()
   @ResponseMessage('Lấy danh sách board thành công')
-  findAll(@GetUser('sub') userId: string) {
-    return this.boardsService.findAllForUser(userId);
+  findAll(@GetUser('sub') userId: string, @Query('search') search?: string) {
+    return this.boardsService.findAllForUser(userId, search);
   }
 
   @Get('recently-viewed')
