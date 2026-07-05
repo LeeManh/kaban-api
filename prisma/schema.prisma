@@ -114,6 +114,7 @@ model Card {
   order       Float
   priority    CardPriority @default(MEDIUM)
   dueDate     DateTime?    @map("due_date")
+  isDone      Boolean      @default(false) @map("is_done")
   version     Int          @default(0)
   listId      String       @map("list_id")
   list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)

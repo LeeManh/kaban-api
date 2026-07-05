@@ -25,6 +25,9 @@ const ORDER_STEP = 1000;
 
 const LABEL_SELECT = { select: { id: true, name: true, color: true } };
 const ASSIGNEE_SELECT = { select: { id: true, name: true, email: true } };
+const COUNT_SELECT = {
+  select: { comments: true, attachments: true, checklists: true },
+};
 
 @Injectable()
 export class CardsService {
@@ -76,14 +79,22 @@ export class CardsService {
     return this.prisma.card.findMany({
       where: { listId },
       orderBy: { order: 'asc' },
-      include: { labels: LABEL_SELECT, assignees: ASSIGNEE_SELECT },
+      include: {
+        labels: LABEL_SELECT,
+        assignees: ASSIGNEE_SELECT,
+        _count: COUNT_SELECT,
+      },
     });
   }
 
   async findOne(boardId: string, cardId: string) {
     const card = await this.prisma.card.findFirst({
       where: { id: cardId, list: { boardId } },
-      include: { labels: LABEL_SELECT, assignees: ASSIGNEE_SELECT },
+      include: {
+        labels: LABEL_SELECT,
+        assignees: ASSIGNEE_SELECT,
+        _count: COUNT_SELECT,
+      },
     });
     if (!card)
       throw new NotFoundException('Không tìm thấy card trong board này');
