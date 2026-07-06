@@ -9,6 +9,13 @@ import { randomUUID } from 'crypto';
 import { Role } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import {
+  ASSIGNEE_SELECT,
+  CHECKLIST_ITEMS_SELECT,
+  COUNT_SELECT,
+  LABEL_SELECT,
+  withChecklistProgress,
+} from '../cards/card.selects';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
@@ -72,6 +79,20 @@ export class BoardsService {
           },
         },
         stars: { where: { userId }, select: { userId: true } },
+        lists: {
+          orderBy: { order: 'asc' },
+          include: {
+            cards: {
+              orderBy: { order: 'asc' },
+              include: {
+                labels: LABEL_SELECT,
+                assignees: ASSIGNEE_SELECT,
+                _count: COUNT_SELECT,
+                checklists: CHECKLIST_ITEMS_SELECT,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -83,12 +104,16 @@ export class BoardsService {
       create: { userId, boardId },
     });
 
-    const { stars, members, ...rest } = board;
+    const { stars, members, lists, ...rest } = board;
     return {
       ...rest,
       background: await this.resolveBackground(rest.background),
       isStarred: stars.length > 0,
       members: members.map((m) => m.user),
+      lists: lists.map(({ cards, ...list }) => ({
+        ...list,
+        cards: cards.map(withChecklistProgress),
+      })),
     };
   }
 

@@ -8,6 +8,6 @@ export class CreateBoardDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(255)
+  @MaxLength(500)
   background!: string;
 }

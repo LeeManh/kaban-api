@@ -21,29 +21,15 @@ import type {
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { MoveCardDto } from './dto/move-card.dto';
+import {
+  ASSIGNEE_SELECT,
+  CHECKLIST_ITEMS_SELECT,
+  COUNT_SELECT,
+  LABEL_SELECT,
+  withChecklistProgress,
+} from './card.selects';
 
 const ORDER_STEP = 1000;
-
-const LABEL_SELECT = { select: { id: true, name: true, color: true } };
-const ASSIGNEE_SELECT = { select: { id: true, name: true, email: true } };
-const COUNT_SELECT = { select: { comments: true, attachments: true } };
-const CHECKLIST_ITEMS_SELECT = {
-  select: { items: { select: { isDone: true } } },
-};
-
-type CardWithChecklists = { checklists: { items: { isDone: boolean }[] }[] };
-
-function withChecklistProgress<T extends CardWithChecklists>(card: T) {
-  const { checklists, ...rest } = card;
-  const items = checklists.flatMap((c) => c.items);
-  return {
-    ...rest,
-    checklistProgress: {
-      done: items.filter((i) => i.isDone).length,
-      total: items.length,
-    },
-  };
-}
 
 @Injectable()
 export class CardsService {
