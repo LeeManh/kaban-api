@@ -26,10 +26,10 @@ import { MAIL_QUEUE } from './mail.constants';
         template: {
           dir: join(__dirname, 'templates'),
           adapter: new HandlebarsAdapter(),
-          options: {
-            strict: true,
-            partials: { dir: join(__dirname, 'templates/partials') },
-          },
+          options: { strict: true },
+        },
+        options: {
+          partials: { dir: join(__dirname, 'templates/partials') },
         },
       }),
     }),
