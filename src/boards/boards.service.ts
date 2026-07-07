@@ -14,6 +14,7 @@ import {
   CHECKLIST_ITEMS_SELECT,
   COUNT_SELECT,
   LABEL_SELECT,
+  resolveCardCover,
   withChecklistProgress,
 } from '../cards/card.selects';
 import { AddMemberDto } from './dto/add-member.dto';
@@ -110,10 +111,17 @@ export class BoardsService {
       background: await this.resolveBackground(rest.background),
       isStarred: stars.length > 0,
       members: members.map((m) => m.user),
-      lists: lists.map(({ cards, ...list }) => ({
-        ...list,
-        cards: cards.map(withChecklistProgress),
-      })),
+      lists: await Promise.all(
+        lists.map(async ({ cards, ...list }) => ({
+          ...list,
+          cards: await Promise.all(
+            cards.map(async (card) => ({
+              ...withChecklistProgress(card),
+              cover: await resolveCardCover(card.cover, this.storage),
+            })),
+          ),
+        })),
+      ),
     };
   }
 

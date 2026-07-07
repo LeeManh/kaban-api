@@ -25,4 +25,9 @@ export class CreateCardDto {
   @IsOptional()
   @IsISO8601()
   dueDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  cover?: string;
 }

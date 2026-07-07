@@ -10,6 +10,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
 import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { MAIL_JOB, MAIL_QUEUE } from '../mail/mail.constants';
 import { APP_EVENT } from '../events/events.constants';
 import type {
@@ -26,6 +27,7 @@ import {
   CHECKLIST_ITEMS_SELECT,
   COUNT_SELECT,
   LABEL_SELECT,
+  resolveCardCover,
   withChecklistProgress,
 } from './card.selects';
 
@@ -37,6 +39,7 @@ export class CardsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
     @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -62,6 +65,7 @@ export class CardsService {
         description: dto.description,
         priority: dto.priority,
         dueDate: dto.dueDate,
+        cover: dto.cover,
         order,
         listId,
       },
@@ -94,7 +98,12 @@ export class CardsService {
         checklists: CHECKLIST_ITEMS_SELECT,
       },
     });
-    return cards.map(withChecklistProgress);
+    return Promise.all(
+      cards.map(async (card) => ({
+        ...withChecklistProgress(card),
+        cover: await resolveCardCover(card.cover, this.storage),
+      })),
+    );
   }
 
   async findOne(boardId: string, cardId: string) {
@@ -109,7 +118,10 @@ export class CardsService {
     });
     if (!card)
       throw new NotFoundException('Không tìm thấy card trong board này');
-    return withChecklistProgress(card);
+    return {
+      ...withChecklistProgress(card),
+      cover: await resolveCardCover(card.cover, this.storage),
+    };
   }
 
   async update(

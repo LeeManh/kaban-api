@@ -1,3 +1,17 @@
+import { StorageService } from '../storage/storage.service';
+
+const CARD_STORAGE_KEY_PREFIX = 'cards/';
+
+export function resolveCardCover(
+  cover: string | null,
+  storage: StorageService,
+) {
+  if (!cover) return Promise.resolve(null);
+  if (cover.startsWith(CARD_STORAGE_KEY_PREFIX))
+    return storage.getDownloadUrl(cover);
+  return Promise.resolve(cover);
+}
+
 export const LABEL_SELECT = { select: { id: true, name: true, color: true } };
 export const ASSIGNEE_SELECT = {
   select: { id: true, name: true, email: true },
