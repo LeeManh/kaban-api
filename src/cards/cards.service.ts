@@ -112,14 +112,37 @@ export class CardsService {
       include: {
         labels: LABEL_SELECT,
         assignees: ASSIGNEE_SELECT,
-        _count: COUNT_SELECT,
-        checklists: CHECKLIST_ITEMS_SELECT,
+        checklists: {
+          orderBy: { order: 'asc' },
+          include: { items: { orderBy: { order: 'asc' } } },
+        },
+        attachments: { orderBy: { createdAt: 'desc' } },
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          include: { author: ASSIGNEE_SELECT },
+        },
       },
     });
     if (!card)
       throw new NotFoundException('Không tìm thấy card trong board này');
+
+    const items = card.checklists.flatMap((checklist) => checklist.items);
+    const checklistProgress = {
+      done: items.filter((item) => item.isDone).length,
+      total: items.length,
+    };
+
+    const attachments = await Promise.all(
+      card.attachments.map(async (attachment) => ({
+        ...attachment,
+        downloadUrl: await this.storage.getDownloadUrl(attachment.key),
+      })),
+    );
+
     return {
-      ...withChecklistProgress(card),
+      ...card,
+      attachments,
+      checklistProgress,
       cover: await resolveCardCover(card.cover, this.storage),
     };
   }
