@@ -12,6 +12,36 @@ export function resolveCardCover(
   return Promise.resolve(cover);
 }
 
+const MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+
+export async function resolveDescriptionImages(
+  description: string | null,
+  storage: StorageService,
+): Promise<string | null> {
+  if (!description) return description;
+
+  const keys = [...description.matchAll(MARKDOWN_IMAGE_REGEX)]
+    .map((match) => match[2])
+    .filter((src) => src.startsWith(CARD_STORAGE_KEY_PREFIX));
+  if (keys.length === 0) return description;
+
+  const urlByKey = new Map(
+    await Promise.all(
+      [...new Set(keys)].map(
+        async (key) => [key, await storage.getDownloadUrl(key)] as const,
+      ),
+    ),
+  );
+
+  return description.replace(
+    MARKDOWN_IMAGE_REGEX,
+    (full, alt: string, src: string) => {
+      const resolved = urlByKey.get(src);
+      return resolved ? `![${alt}](${resolved})` : full;
+    },
+  );
+}
+
 export const LABEL_SELECT = { select: { id: true, name: true, color: true } };
 export const ASSIGNEE_SELECT = {
   select: { id: true, name: true, email: true },

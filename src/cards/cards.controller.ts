@@ -17,6 +17,7 @@ import { CardsService } from './cards.service';
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { MoveCardDto } from './dto/move-card.dto';
+import { PresignDescriptionImageDto } from './dto/presign-description-image.dto';
 
 @Controller('boards/:boardId')
 @UseGuards(BoardRolesGuard)
@@ -59,6 +60,17 @@ export class CardsController {
     @GetUser('sub') actorId: string,
   ) {
     return this.cardsService.update(boardId, cardId, dto, actorId);
+  }
+
+  @Post('cards/:cardId/description/presign')
+  @Roles(Role.MEMBER)
+  @ResponseMessage('Tạo URL upload ảnh cho mô tả thành công')
+  presignDescriptionImage(
+    @Param('boardId') boardId: string,
+    @Param('cardId') cardId: string,
+    @Body() dto: PresignDescriptionImageDto,
+  ) {
+    return this.cardsService.presignDescriptionImage(boardId, cardId, dto);
   }
 
   @Patch('cards/:cardId/move')

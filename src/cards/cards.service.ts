@@ -8,6 +8,7 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
+import { randomUUID } from 'crypto';
 import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -22,12 +23,14 @@ import type {
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { MoveCardDto } from './dto/move-card.dto';
+import { PresignDescriptionImageDto } from './dto/presign-description-image.dto';
 import {
   ASSIGNEE_SELECT,
   CHECKLIST_ITEMS_SELECT,
   COUNT_SELECT,
   LABEL_SELECT,
   resolveCardCover,
+  resolveDescriptionImages,
   withChecklistProgress,
 } from './card.selects';
 
@@ -149,6 +152,10 @@ export class CardsService {
       attachments,
       checklistProgress,
       cover: await resolveCardCover(card.cover, this.storage),
+      description: await resolveDescriptionImages(
+        card.description,
+        this.storage,
+      ),
     };
   }
 
@@ -301,8 +308,8 @@ export class CardsService {
         );
       return (before + after) / 2;
     }
-    if (after !== null) return after - ORDER_STEP; // lên đầu
-    if (before !== null) return before + ORDER_STEP; // xuống sau 1 card
+    if (after !== null) return after - ORDER_STEP;
+    if (before !== null) return before + ORDER_STEP;
 
     const last = await this.prisma.card.findFirst({
       where: { listId },
@@ -405,6 +412,20 @@ export class CardsService {
       throw new BadRequestException(
         'Người dùng không phải thành viên của board',
       );
+  }
+
+  async presignDescriptionImage(
+    boardId: string,
+    cardId: string,
+    dto: PresignDescriptionImageDto,
+  ) {
+    await this.getCardInBoard(boardId, cardId);
+
+    const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
+    const key = `cards/${cardId}/description/${randomUUID()}-${safeName}`;
+    const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
+
+    return { key, uploadUrl };
   }
 
   private async getCardInBoard(boardId: string, cardId: string) {
