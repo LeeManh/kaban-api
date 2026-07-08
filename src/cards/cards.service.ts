@@ -65,6 +65,7 @@ export class CardsService {
         description: dto.description,
         priority: dto.priority,
         dueDate: dto.dueDate,
+        reminderOffsetMinutes: dto.reminderOffsetMinutes,
         cover: dto.cover,
         order,
         listId,
@@ -72,7 +73,11 @@ export class CardsService {
     });
 
     try {
-      await this.scheduleDueReminder(card.id, card.dueDate);
+      await this.scheduleDueReminder(
+        card.id,
+        card.dueDate,
+        card.reminderOffsetMinutes,
+      );
     } catch (err) {
       this.logger.error('Không thể lên lịch nhắc hạn cho card', err);
     }
@@ -158,7 +163,11 @@ export class CardsService {
     const card = await this.updateWithVersion(cardId, version, data);
 
     try {
-      await this.scheduleDueReminder(card.id, card.dueDate);
+      await this.scheduleDueReminder(
+        card.id,
+        card.dueDate,
+        card.reminderOffsetMinutes,
+      );
     } catch (err) {
       this.logger.error('Không thể lên lịch nhắc hạn cho card', err);
     }
@@ -198,7 +207,7 @@ export class CardsService {
     const card = await this.getCardInBoard(boardId, cardId);
     await this.prisma.card.delete({ where: { id: cardId } });
     try {
-      await this.scheduleDueReminder(cardId, null);
+      await this.scheduleDueReminder(cardId, null, null);
     } catch (err) {
       this.logger.error('Không thể huỷ lịch nhắc hạn cho card', err);
     }
@@ -213,16 +222,22 @@ export class CardsService {
     return { id: cardId };
   }
 
-  private async scheduleDueReminder(cardId: string, dueDate: Date | null) {
+  private async scheduleDueReminder(
+    cardId: string,
+    dueDate: Date | null,
+    reminderOffsetMinutes: number | null,
+  ) {
     const jobId = `due-reminder:${cardId}`;
 
-    // Xóa job cũ trước (để cập nhật khi đổi hạn, hoặc hủy khi bỏ hạn/xóa card).
     const existing = await this.mailQueue.getJob(jobId);
     if (existing) await existing.remove();
 
-    if (!dueDate) return;
-    const delay = new Date(dueDate).getTime() - Date.now();
-    if (delay <= 0) return; // đã quá hạn → không nhắc
+    if (!dueDate || reminderOffsetMinutes == null) return;
+
+    const remindAt =
+      new Date(dueDate).getTime() - reminderOffsetMinutes * 60_000;
+    const delay = remindAt - Date.now();
+    if (delay <= 0) return;
 
     await this.mailQueue.add(
       MAIL_JOB.DUE_REMINDER,

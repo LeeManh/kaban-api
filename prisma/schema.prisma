@@ -111,24 +111,25 @@ model List {
 }
 
 model Card {
-  id          String       @id @default(cuid())
-  title       String
-  description String?      @db.Text
-  order       Float
-  priority    CardPriority @default(MEDIUM)
-  dueDate     DateTime?    @map("due_date")
-  isDone      Boolean      @default(false) @map("is_done")
-  cover       String?
-  version     Int          @default(0)
-  listId      String       @map("list_id")
-  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
-  labels      Label[]
-  comments    Comment[]
-  checklists  Checklist[]
-  attachments Attachment[]
-  assignees   User[]       @relation("CardAssignees")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  id                    String       @id @default(cuid())
+  title                 String
+  description           String?      @db.Text
+  order                 Float
+  priority              CardPriority @default(MEDIUM)
+  dueDate               DateTime?    @map("due_date")
+  reminderOffsetMinutes Int?         @map("reminder_offset_minutes")
+  isDone                Boolean      @default(false) @map("is_done")
+  cover                 String?
+  version               Int          @default(0)
+  listId                String       @map("list_id")
+  list                  List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  labels                Label[]
+  comments              Comment[]
+  checklists            Checklist[]
+  attachments           Attachment[]
+  assignees             User[]       @relation("CardAssignees")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
 
   @@index([listId, order])
   @@map("cards")

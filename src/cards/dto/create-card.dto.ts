@@ -1,9 +1,11 @@
 import {
   IsEnum,
+  IsInt,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Min,
   MaxLength,
 } from 'class-validator';
 import { CardPriority } from 'generated/prisma/enums';
@@ -25,6 +27,11 @@ export class CreateCardDto {
   @IsOptional()
   @IsISO8601()
   dueDate?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  reminderOffsetMinutes?: number | null;
 
   @IsOptional()
   @IsString()
