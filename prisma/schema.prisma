@@ -34,6 +34,17 @@ enum NotificationType {
   BOARD_INVITATION
 }
 
+enum InviteLinkPermission {
+  OPEN
+  APPROVAL
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -42,16 +53,18 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  refreshToken  RefreshToken[]
-  ownedBoards   Board[]        @relation("BoardOwner")
-  boardMembers  BoardMember[]
-  comments      Comment[]
-  attachments   Attachment[]
-  assignedCards Card[]         @relation("CardAssignees")
-  notifications Notification[]
-  boardViews    BoardView[]
-  boardStars    BoardStar[]
-  sentInvites   BoardInvite[]
+  refreshToken       RefreshToken[]
+  ownedBoards        Board[]            @relation("BoardOwner")
+  boardMembers       BoardMember[]
+  comments           Comment[]
+  attachments        Attachment[]
+  assignedCards      Card[]             @relation("CardAssignees")
+  notifications      Notification[]
+  boardViews         BoardView[]
+  boardStars         BoardStar[]
+  sentInvites        BoardInvite[]
+  createdInviteLinks BoardInviteLink[]
+  joinRequests       BoardJoinRequest[]
 
   @@map("users")
 }
@@ -70,18 +83,19 @@ model RefreshToken {
 }
 
 model Board {
-  id         String        @id @default(cuid())
+  id         String           @id @default(cuid())
   name       String
   background String
-  ownerId    String        @map("owner_id")
-  owner      User          @relation("BoardOwner", fields: [ownerId], references: [id])
+  ownerId    String           @map("owner_id")
+  owner      User             @relation("BoardOwner", fields: [ownerId], references: [id])
   members    BoardMember[]
   lists      List[]
   labels     Label[]
   views      BoardView[]
   stars      BoardStar[]
   invites    BoardInvite[]
-  createdAt  DateTime      @default(now()) @map("created_at")
+  inviteLink BoardInviteLink?
+  createdAt  DateTime         @default(now()) @map("created_at")
 
   @@map("boards")
 }
@@ -259,4 +273,33 @@ model BoardInvite {
   @@index([boardId])
   @@index([email])
   @@map("board_invites")
+}
+
+model BoardInviteLink {
+  id           String               @id @default(cuid())
+  boardId      String               @unique @map("board_id")
+  token        String               @unique
+  role         Role                 @default(MEMBER)
+  permission   InviteLinkPermission @default(OPEN)
+  createdById  String               @map("created_by_id")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  board        Board                @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  createdBy    User                 @relation(fields: [createdById], references: [id])
+  joinRequests BoardJoinRequest[]
+
+  @@map("board_invite_links")
+}
+
+model BoardJoinRequest {
+  id           String            @id @default(cuid())
+  inviteLinkId String            @map("invite_link_id")
+  userId       String            @map("user_id")
+  status       JoinRequestStatus @default(PENDING)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  decidedAt    DateTime?         @map("decided_at")
+  inviteLink   BoardInviteLink   @relation(fields: [inviteLinkId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteLinkId, userId])
+  @@map("board_join_requests")
 }

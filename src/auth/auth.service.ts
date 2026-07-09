@@ -23,6 +23,7 @@ import { RedisService } from 'src/redis/redis.service';
 import { MAIL_JOB, MAIL_QUEUE } from 'src/mail/mail.constants';
 import type { PasswordResetData } from 'src/mail/mail.types';
 import { InvitesService } from '../invites/invites.service';
+import { InviteLinksService } from '../invites/invite-links.service';
 
 const RESET_TOKEN_TTL_SECONDS = 30 * 60;
 
@@ -39,11 +40,12 @@ export class AuthService {
     private readonly appCfg: ConfigType<typeof appConfig>,
     private readonly redis: RedisService,
     private readonly invites: InvitesService,
+    private readonly inviteLinks: InviteLinksService,
     @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
   ) {}
 
   async register(dto: RegisterDto) {
-    const { inviteToken, ...rest } = dto;
+    const { inviteToken, inviteLinkToken, ...rest } = dto;
     const exists = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -56,6 +58,7 @@ export class AuthService {
 
     if (inviteToken)
       await this.tryAcceptInvite(inviteToken, user.id, user.email);
+    if (inviteLinkToken) await this.tryJoinInviteLink(inviteLinkToken, user.id);
 
     return this.issueTokens(user.id, user.email);
   }
@@ -72,6 +75,8 @@ export class AuthService {
 
     if (dto.inviteToken)
       await this.tryAcceptInvite(dto.inviteToken, user.id, user.email);
+    if (dto.inviteLinkToken)
+      await this.tryJoinInviteLink(dto.inviteLinkToken, user.id);
 
     return this.issueTokens(user.id, user.email, dto.rememberMe ?? false);
   }
@@ -82,6 +87,16 @@ export class AuthService {
     } catch (err) {
       this.logger.warn(
         `Không thể tự động accept invite: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  private async tryJoinInviteLink(token: string, userId: string) {
+    try {
+      await this.inviteLinks.join(token, userId);
+    } catch (err) {
+      this.logger.warn(
+        `Không thể tự động join qua invite link: ${(err as Error).message}`,
       );
     }
   }

@@ -15,4 +15,8 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   inviteToken?: string;
+
+  @IsOptional()
+  @IsString()
+  inviteLinkToken?: string;
 }

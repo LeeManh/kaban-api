@@ -21,4 +21,8 @@ export class LoginDto {
   @IsOptional()
   @IsString()
   inviteToken?: string;
+
+  @IsOptional()
+  @IsString()
+  inviteLinkToken?: string;
 }
