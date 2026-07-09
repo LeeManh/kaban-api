@@ -4,12 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { randomUUID } from 'crypto';
 import { Role } from 'generated/prisma/enums';
+import { CARD_STORAGE_KEY_PREFIX } from '../cards/card.selects';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
+import { resolveMarkdownImages } from '../storage/markdown-images.util';
 import { APP_EVENT } from '../events/events.constants';
 import type { CommentAddedEvent } from '../events/events.types';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { PresignCommentImageDto } from './dto/presign-comment-image.dto';
 
 const AUTHOR_SELECT = { select: { id: true, name: true, email: true } };
 
@@ -17,8 +22,24 @@ const AUTHOR_SELECT = { select: { id: true, name: true, email: true } };
 export class CommentsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  async presignImage(
+    boardId: string,
+    cardId: string,
+    dto: PresignCommentImageDto,
+  ) {
+    await this.ensureCardInBoard(boardId, cardId);
+
+    const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
+    const key = `${CARD_STORAGE_KEY_PREFIX}${cardId}/comments/${randomUUID()}-${safeName}`;
+    const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
+    const viewUrl = await this.storage.getDownloadUrl(key, 7 * 24 * 3600);
+
+    return { key, uploadUrl, viewUrl };
+  }
 
   async create(
     boardId: string,
@@ -38,16 +59,26 @@ export class CommentsService {
       actorId: authorId,
     } satisfies CommentAddedEvent);
 
-    return comment;
+    return {
+      ...comment,
+      content: await this.resolveContentImages(comment.content),
+    };
   }
 
   async findAll(boardId: string, cardId: string) {
     await this.ensureCardInBoard(boardId, cardId);
-    return this.prisma.comment.findMany({
+    const comments = await this.prisma.comment.findMany({
       where: { cardId },
       orderBy: { createdAt: 'asc' },
       include: { author: AUTHOR_SELECT },
     });
+
+    return Promise.all(
+      comments.map(async (comment) => ({
+        ...comment,
+        content: await this.resolveContentImages(comment.content),
+      })),
+    );
   }
 
   async update(
@@ -60,11 +91,24 @@ export class CommentsService {
     if (comment.authorId !== callerId)
       throw new ForbiddenException('Chỉ tác giả mới được sửa comment');
 
-    return this.prisma.comment.update({
+    const updated = await this.prisma.comment.update({
       where: { id: commentId },
       data: dto,
       include: { author: AUTHOR_SELECT },
     });
+
+    return {
+      ...updated,
+      content: await this.resolveContentImages(updated.content),
+    };
+  }
+
+  private resolveContentImages(content: string) {
+    return resolveMarkdownImages(
+      content,
+      this.storage,
+      CARD_STORAGE_KEY_PREFIX,
+    );
   }
 
   async remove(boardId: string, commentId: string, callerId: string) {

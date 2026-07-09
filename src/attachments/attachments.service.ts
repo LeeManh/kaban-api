@@ -25,7 +25,7 @@ export class AttachmentsService {
     await this.ensureCardInBoard(boardId, cardId);
 
     const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
-    const key = `cards/${cardId}/${randomUUID()}-${safeName}`;
+    const key = `cards/${cardId}/attachments/${randomUUID()}-${safeName}`;
 
     const attachment = await this.prisma.attachment.create({
       data: {

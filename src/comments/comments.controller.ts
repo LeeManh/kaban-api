@@ -16,11 +16,23 @@ import { BoardRolesGuard } from '../common/guard/board-roles.guard';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { PresignCommentImageDto } from './dto/presign-comment-image.dto';
 
 @Controller('boards/:boardId')
 @UseGuards(BoardRolesGuard)
 export class CommentsController {
   constructor(private readonly commentsService: CommentsService) {}
+
+  @Post('cards/:cardId/comments/image/presign')
+  @Roles(Role.MEMBER)
+  @ResponseMessage('Tạo URL upload ảnh cho comment thành công')
+  presignImage(
+    @Param('boardId') boardId: string,
+    @Param('cardId') cardId: string,
+    @Body() dto: PresignCommentImageDto,
+  ) {
+    return this.commentsService.presignImage(boardId, cardId, dto);
+  }
 
   @Post('cards/:cardId/comments')
   @Roles(Role.MEMBER)

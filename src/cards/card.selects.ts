@@ -1,6 +1,7 @@
 import { StorageService } from '../storage/storage.service';
+import { resolveMarkdownImages } from '../storage/markdown-images.util';
 
-const CARD_STORAGE_KEY_PREFIX = 'cards/';
+export const CARD_STORAGE_KEY_PREFIX = 'cards/';
 
 export function resolveCardCover(
   cover: string | null,
@@ -12,34 +13,11 @@ export function resolveCardCover(
   return Promise.resolve(cover);
 }
 
-const MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
-
-export async function resolveDescriptionImages(
+export function resolveDescriptionImages(
   description: string | null,
   storage: StorageService,
-): Promise<string | null> {
-  if (!description) return description;
-
-  const keys = [...description.matchAll(MARKDOWN_IMAGE_REGEX)]
-    .map((match) => match[2])
-    .filter((src) => src.startsWith(CARD_STORAGE_KEY_PREFIX));
-  if (keys.length === 0) return description;
-
-  const urlByKey = new Map(
-    await Promise.all(
-      [...new Set(keys)].map(
-        async (key) => [key, await storage.getDownloadUrl(key)] as const,
-      ),
-    ),
-  );
-
-  return description.replace(
-    MARKDOWN_IMAGE_REGEX,
-    (full, alt: string, src: string) => {
-      const resolved = urlByKey.get(src);
-      return resolved ? `![${alt}](${resolved})` : full;
-    },
-  );
+) {
+  return resolveMarkdownImages(description, storage, CARD_STORAGE_KEY_PREFIX);
 }
 
 export const LABEL_SELECT = { select: { id: true, name: true, color: true } };
