@@ -18,3 +18,10 @@ export interface PasswordResetData {
   to: string;
   resetUrl: string;
 }
+
+export interface BoardInvitationData {
+  to: string;
+  boardName: string;
+  invitedByName: string;
+  acceptUrl: string;
+}

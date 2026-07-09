@@ -2,6 +2,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -21,11 +22,14 @@ import { Prisma } from 'generated/prisma/client';
 import { RedisService } from 'src/redis/redis.service';
 import { MAIL_JOB, MAIL_QUEUE } from 'src/mail/mail.constants';
 import type { PasswordResetData } from 'src/mail/mail.types';
+import { InvitesService } from '../invites/invites.service';
 
 const RESET_TOKEN_TTL_SECONDS = 30 * 60;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -34,10 +38,12 @@ export class AuthService {
     @Inject(appConfig.KEY)
     private readonly appCfg: ConfigType<typeof appConfig>,
     private readonly redis: RedisService,
+    private readonly invites: InvitesService,
     @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
   ) {}
 
   async register(dto: RegisterDto) {
+    const { inviteToken, ...rest } = dto;
     const exists = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -45,8 +51,12 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
-      data: { ...dto, password: passwordHash },
+      data: { ...rest, password: passwordHash },
     });
+
+    if (inviteToken)
+      await this.tryAcceptInvite(inviteToken, user.id, user.email);
+
     return this.issueTokens(user.id, user.email);
   }
 
@@ -60,7 +70,20 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.password, user.password);
     if (!ok) throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
 
+    if (dto.inviteToken)
+      await this.tryAcceptInvite(dto.inviteToken, user.id, user.email);
+
     return this.issueTokens(user.id, user.email, dto.rememberMe ?? false);
+  }
+
+  private async tryAcceptInvite(token: string, userId: string, email: string) {
+    try {
+      await this.invites.accept(token, userId, email);
+    } catch (err) {
+      this.logger.warn(
+        `Không thể tự động accept invite: ${(err as Error).message}`,
+      );
+    }
   }
 
   async refresh(refreshToken: string) {

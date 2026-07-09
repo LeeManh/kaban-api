@@ -5,4 +5,5 @@ export const MAIL_JOB = {
   DUE_REMINDER: 'due-reminder',
   SEND_EMAIL: 'send-email',
   PASSWORD_RESET: 'password-reset',
+  BOARD_INVITATION: 'board-invitation',
 } as const;

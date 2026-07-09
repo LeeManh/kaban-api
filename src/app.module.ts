@@ -31,6 +31,7 @@ import { AttachmentsModule } from './attachments/attachments.module';
 import { MailModule } from './mail/mail.module';
 import { EventsModule } from './events/events.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { InvitesModule } from './invites/invites.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     MailModule,
     EventsModule,
     NotificationsModule,
+    InvitesModule,
   ],
   controllers: [],
   providers: [

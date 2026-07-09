@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from './mail.service';
 import { MAIL_JOB, MAIL_QUEUE } from './mail.constants';
 import type {
+  BoardInvitationData,
   CardAssignedData,
   DueReminderData,
   PasswordResetData,
@@ -71,6 +72,18 @@ export class MailProcessor extends WorkerHost {
           subject: 'Đặt lại mật khẩu Kanvas',
           template: 'forgot-password',
           context: { resetUrl },
+        });
+        break;
+      }
+
+      case MAIL_JOB.BOARD_INVITATION: {
+        const { to, boardName, invitedByName, acceptUrl } =
+          job.data as BoardInvitationData;
+        await this.mail.sendMail({
+          to,
+          subject: `${invitedByName} đã mời bạn vào board "${boardName}"`,
+          template: 'board-invitation',
+          context: { boardName, invitedByName, acceptUrl },
         });
         break;
       }
