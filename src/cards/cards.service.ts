@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { resolveMarkdownImages } from '../storage/markdown-images.util';
 import { MAIL_JOB, MAIL_QUEUE } from '../mail/mail.constants';
 import { APP_EVENT } from '../events/events.constants';
 import type {
@@ -26,6 +27,7 @@ import { MoveCardDto } from './dto/move-card.dto';
 import { PresignDescriptionImageDto } from './dto/presign-description-image.dto';
 import {
   ASSIGNEE_SELECT,
+  CARD_STORAGE_KEY_PREFIX,
   CHECKLIST_ITEMS_SELECT,
   COUNT_SELECT,
   LABEL_SELECT,
@@ -126,7 +128,7 @@ export class CardsService {
         },
         attachments: { orderBy: { createdAt: 'desc' } },
         comments: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: 'desc' },
           include: { author: ASSIGNEE_SELECT },
         },
       },
@@ -147,9 +149,21 @@ export class CardsService {
       })),
     );
 
+    const comments = await Promise.all(
+      card.comments.map(async (comment) => ({
+        ...comment,
+        content: await resolveMarkdownImages(
+          comment.content,
+          this.storage,
+          CARD_STORAGE_KEY_PREFIX,
+        ),
+      })),
+    );
+
     return {
       ...card,
       attachments,
+      comments,
       checklistProgress,
       cover: await resolveCardCover(card.cover, this.storage),
       description: await resolveDescriptionImages(

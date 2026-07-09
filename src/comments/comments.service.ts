@@ -69,7 +69,7 @@ export class CommentsService {
     await this.ensureCardInBoard(boardId, cardId);
     const comments = await this.prisma.comment.findMany({
       where: { cardId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       include: { author: AUTHOR_SELECT },
     });
 
