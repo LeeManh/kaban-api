@@ -178,7 +178,7 @@ export class BoardsService {
         role: true,
         user: { select: { id: true, email: true, name: true } },
       },
-      orderBy: { role: 'asc' },
+      orderBy: [{ createdAt: 'asc' }],
     });
   }
 

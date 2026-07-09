@@ -87,11 +87,12 @@ model Board {
 }
 
 model BoardMember {
-  boardId String @map("board_id")
-  userId  String @map("user_id")
-  role    Role   @default(MEMBER)
-  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardId   String   @map("board_id")
+  userId    String   @map("user_id")
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now()) @map("created_at")
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([boardId, userId])
   @@index([userId])
