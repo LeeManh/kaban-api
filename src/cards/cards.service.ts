@@ -424,8 +424,9 @@ export class CardsService {
     const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
     const key = `cards/${cardId}/description/${randomUUID()}-${safeName}`;
     const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
+    const viewUrl = await this.storage.getDownloadUrl(key, 7 * 24 * 3600);
 
-    return { key, uploadUrl };
+    return { key, uploadUrl, viewUrl };
   }
 
   private async getCardInBoard(boardId: string, cardId: string) {
