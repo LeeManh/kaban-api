@@ -269,11 +269,9 @@ export class BoardsService {
     if (!target)
       throw new NotFoundException('Người dùng không phải thành viên của board');
 
-    // Không xóa được OWNER — phải chuyển quyền sở hữu hoặc xóa cả board.
     if (target.role === Role.OWNER)
       throw new BadRequestException('Không thể xóa OWNER khỏi board');
 
-    // Chống leo thang quyền: chỉ OWNER mới được xóa ADMIN.
     const caller = await this.prisma.boardMember.findUnique({
       where: { boardId_userId: { boardId, userId: callerId } },
       select: { role: true },
@@ -281,9 +279,12 @@ export class BoardsService {
     if (caller?.role !== Role.OWNER && target.role === Role.ADMIN)
       throw new ForbiddenException('Chỉ OWNER mới được xóa ADMIN');
 
-    await this.prisma.boardMember.delete({
-      where: { boardId_userId: { boardId, userId: targetUserId } },
-    });
+    await this.prisma.$transaction([
+      this.prisma.boardMember.delete({
+        where: { boardId_userId: { boardId, userId: targetUserId } },
+      }),
+      ...(await this.buildUnassignFromBoardCardsOps(boardId, targetUserId)),
+    ]);
     return { boardId, userId: targetUserId };
   }
 
@@ -295,19 +296,36 @@ export class BoardsService {
     if (!membership)
       throw new NotFoundException('Bạn không phải thành viên của board này');
 
-    // OWNER không thể rời board — phải chuyển quyền sở hữu hoặc xóa board.
     if (membership.role === Role.OWNER)
       throw new ForbiddenException(
         'OWNER không thể rời board. Hãy chuyển quyền sở hữu hoặc xóa board.',
       );
 
-    await this.prisma.boardMember.delete({
-      where: { boardId_userId: { boardId, userId } },
-    });
+    await this.prisma.$transaction([
+      this.prisma.boardMember.delete({
+        where: { boardId_userId: { boardId, userId } },
+      }),
+      ...(await this.buildUnassignFromBoardCardsOps(boardId, userId)),
+    ]);
     return { boardId, userId };
   }
 
-  // Người gọi đã được guard đảm bảo là OWNER của board.
+  private async buildUnassignFromBoardCardsOps(
+    boardId: string,
+    userId: string,
+  ) {
+    const cards = await this.prisma.card.findMany({
+      where: { list: { boardId }, assignees: { some: { id: userId } } },
+      select: { id: true },
+    });
+    return cards.map((card) =>
+      this.prisma.card.update({
+        where: { id: card.id },
+        data: { assignees: { disconnect: { id: userId } } },
+      }),
+    );
+  }
+
   async transferOwnership(
     boardId: string,
     dto: TransferOwnershipDto,
@@ -325,8 +343,6 @@ export class BoardsService {
         'Người nhận quyền không phải thành viên của board',
       );
 
-    // Đổi 2 role + cập nhật Board.ownerId trong cùng transaction
-    // để board luôn có đúng 1 OWNER, không rơi vào trạng thái nửa chừng.
     return this.prisma.$transaction(async (tx) => {
       await tx.boardMember.update({
         where: { boardId_userId: { boardId, userId: callerId } },
