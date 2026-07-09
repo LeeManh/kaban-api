@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { PresignAttachmentDto } from './dto/presign-attachment.dto';
+import { UpdateAttachmentDto } from './dto/update-attachment.dto';
 import { ATTACHMENT_JOB, ATTACHMENTS_QUEUE } from './attachment.constants';
 
 @Injectable()
@@ -55,6 +56,18 @@ export class AttachmentsService {
         downloadUrl: await this.storage.getDownloadUrl(att.key),
       })),
     );
+  }
+
+  async rename(
+    boardId: string,
+    attachmentId: string,
+    dto: UpdateAttachmentDto,
+  ) {
+    const att = await this.getAttachmentInBoard(boardId, attachmentId);
+    return this.prisma.attachment.update({
+      where: { id: att.id },
+      data: { filename: dto.filename },
+    });
   }
 
   async remove(boardId: string, attachmentId: string) {
