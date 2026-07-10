@@ -5,10 +5,6 @@ export interface CardAssignedData {
   cardId: string;
 }
 
-export interface DueReminderData {
-  cardId: string;
-}
-
 export interface SendEmailData {
   to: string;
   subject: string;

@@ -113,11 +113,26 @@ export class NotificationsService {
     } satisfies SendEmailData);
   }
 
-  findAll(userId: string, unreadOnly = false) {
-    return this.prisma.notification.findMany({
-      where: { userId, ...(unreadOnly && { isRead: false }) },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(userId: string, unreadOnly = false, page = 1, pageSize = 20) {
+    const where = { userId, ...(unreadOnly && { isRead: false }) };
+
+    const [items, total] = await Promise.all([
+      this.prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.notification.count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   unreadCount(userId: string) {

@@ -14,6 +14,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { resolveMarkdownImages } from '../storage/markdown-images.util';
 import { MAIL_JOB, MAIL_QUEUE } from '../mail/mail.constants';
+import {
+  DUE_REMINDER_JOB,
+  DUE_REMINDER_QUEUE,
+} from '../notifications/notifications.constants';
 import { APP_EVENT } from '../events/events.constants';
 import type {
   CardAssigneeChangedEvent,
@@ -48,6 +52,8 @@ export class CardsService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
+    @InjectQueue(DUE_REMINDER_QUEUE)
+    private readonly dueReminderQueue: Queue,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -255,7 +261,7 @@ export class CardsService {
   ) {
     const jobId = `due-reminder:${cardId}`;
 
-    const existing = await this.mailQueue.getJob(jobId);
+    const existing = await this.dueReminderQueue.getJob(jobId);
     if (existing) await existing.remove();
 
     if (!dueDate || reminderOffsetMinutes == null) return;
@@ -265,8 +271,8 @@ export class CardsService {
     const delay = remindAt - Date.now();
     if (delay <= 0) return;
 
-    await this.mailQueue.add(
-      MAIL_JOB.DUE_REMINDER,
+    await this.dueReminderQueue.add(
+      DUE_REMINDER_JOB.FIRE,
       { cardId },
       {
         jobId,

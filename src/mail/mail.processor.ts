@@ -1,16 +1,13 @@
 import { Inject } from '@nestjs/common';
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { type ConfigType } from '@nestjs/config';
-import { Job, Queue } from 'bullmq';
-import { EmailFrequency } from 'generated/prisma/enums';
+import { Job } from 'bullmq';
 import { appConfig } from '../config';
-import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from './mail.service';
 import { MAIL_JOB, MAIL_QUEUE } from './mail.constants';
 import type {
   BoardInvitationData,
   CardAssignedData,
-  DueReminderData,
   PasswordResetData,
   SendEmailData,
 } from './mail.types';
@@ -19,10 +16,8 @@ import type {
 export class MailProcessor extends WorkerHost {
   constructor(
     private readonly mail: MailService,
-    private readonly prisma: PrismaService,
     @Inject(appConfig.KEY)
     private readonly appCfg: ConfigType<typeof appConfig>,
-    @InjectQueue(MAIL_QUEUE) private readonly queue: Queue,
   ) {
     super();
   }
@@ -37,51 +32,6 @@ export class MailProcessor extends WorkerHost {
           template: 'card-assigned',
           context: { cardTitle, boardId, cardId },
         });
-        break;
-      }
-
-      case MAIL_JOB.DUE_REMINDER: {
-        const { cardId } = job.data as DueReminderData;
-
-        const card = await this.prisma.card.findUnique({
-          where: { id: cardId },
-          select: {
-            title: true,
-            dueDate: true,
-            list: { select: { boardId: true } },
-            assignees: { select: { id: true, email: true } },
-          },
-        });
-
-        if (!card || !card.dueDate) break;
-
-        const dueDateText = new Intl.DateTimeFormat('vi-VN', {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        }).format(card.dueDate);
-
-        for (const assignee of card.assignees) {
-          const pref = await this.prisma.notificationPreference.findUnique({
-            where: { userId: assignee.id },
-          });
-          if (
-            pref?.emailFrequency === EmailFrequency.NEVER ||
-            pref?.dueDatesEnabled === false
-          )
-            continue;
-
-          await this.queue.add(MAIL_JOB.SEND_EMAIL, {
-            to: assignee.email,
-            subject: `Nhắc hạn: ${card.title}`,
-            template: 'due-reminder',
-            context: {
-              cardTitle: card.title,
-              dueDateText,
-              boardId: card.list.boardId,
-              cardId,
-            },
-          } satisfies SendEmailData);
-        }
         break;
       }
 

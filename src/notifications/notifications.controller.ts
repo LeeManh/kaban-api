@@ -10,8 +10,23 @@ export class NotificationsController {
 
   @Get()
   @ResponseMessage('Lấy danh sách thông báo thành công')
-  findAll(@GetUser('sub') userId: string, @Query('unread') unread?: string) {
-    return this.notificationsService.findAll(userId, unread === 'true');
+  findAll(
+    @GetUser('sub') userId: string,
+    @Query('unread') unread?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const parsedPage = Math.max(1, parseInt(page ?? '1', 10) || 1);
+    const parsedPageSize = Math.min(
+      100,
+      Math.max(1, parseInt(pageSize ?? '20', 10) || 20),
+    );
+    return this.notificationsService.findAll(
+      userId,
+      unread === 'true',
+      parsedPage,
+      parsedPageSize,
+    );
   }
 
   @Get('preferences')
