@@ -15,7 +15,9 @@ import {
 } from 'generated/prisma/enums';
 import { appConfig } from '../config';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PUBLIC_USER_SELECT, withResolvedAvatar } from '../users/user.selects';
 import { CreateInviteLinkDto } from './dto/create-invite-link.dto';
 import { UpdateInviteLinkDto } from './dto/update-invite-link.dto';
 import { DecideJoinRequestDto } from './dto/decide-join-request.dto';
@@ -24,6 +26,7 @@ import { DecideJoinRequestDto } from './dto/decide-join-request.dto';
 export class InviteLinksService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
     @Inject(appConfig.KEY)
     private readonly appCfg: ConfigType<typeof appConfig>,
@@ -127,13 +130,19 @@ export class InviteLinksService {
 
   async findJoinRequests(boardId: string) {
     const link = await this.getLinkForBoard(boardId);
-    return this.prisma.boardJoinRequest.findMany({
+    const requests = await this.prisma.boardJoinRequest.findMany({
       where: { inviteLinkId: link.id, status: JoinRequestStatus.PENDING },
       orderBy: { createdAt: 'asc' },
       include: {
-        user: { select: { id: true, email: true, name: true } },
+        user: { select: PUBLIC_USER_SELECT },
       },
     });
+    return Promise.all(
+      requests.map(async (r) => ({
+        ...r,
+        user: await withResolvedAvatar(r.user, this.storage),
+      })),
+    );
   }
 
   async decideJoinRequest(

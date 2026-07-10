@@ -5,47 +5,60 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
+import { USER_AVATAR_KEY_PREFIX, withResolvedAvatar } from './user.selects';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { PresignAvatarDto } from './dto/presign-avatar.dto';
+
+const PROFILE_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  avatar: true,
+  bio: true,
+  createdAt: true,
+  updatedAt: true,
+};
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async findProfileById(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: PROFILE_SELECT,
     });
 
     if (!user) {
       throw new NotFoundException('Không tìm thấy người dùng');
     }
 
-    return user;
+    return withResolvedAvatar(user, this.storage);
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: dto,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: PROFILE_SELECT,
     });
 
-    return user;
+    return withResolvedAvatar(user, this.storage);
+  }
+
+  async presignAvatar(userId: string, dto: PresignAvatarDto) {
+    const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
+    const key = `${USER_AVATAR_KEY_PREFIX}${userId}/${randomUUID()}-${safeName}`;
+    const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
+
+    return { key, uploadUrl };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {

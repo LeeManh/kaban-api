@@ -10,13 +10,14 @@ import { CARD_STORAGE_KEY_PREFIX } from '../cards/card.selects';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { resolveMarkdownImages } from '../storage/markdown-images.util';
+import { PUBLIC_USER_SELECT, withResolvedAvatar } from '../users/user.selects';
 import { APP_EVENT } from '../events/events.constants';
 import type { CommentAddedEvent } from '../events/events.types';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { PresignCommentImageDto } from './dto/presign-comment-image.dto';
 
-const AUTHOR_SELECT = { select: { id: true, name: true, email: true } };
+const AUTHOR_SELECT = { select: PUBLIC_USER_SELECT };
 
 @Injectable()
 export class CommentsService {
@@ -62,6 +63,7 @@ export class CommentsService {
     return {
       ...comment,
       content: await this.resolveContentImages(comment.content),
+      author: await withResolvedAvatar(comment.author, this.storage),
     };
   }
 
@@ -77,6 +79,7 @@ export class CommentsService {
       comments.map(async (comment) => ({
         ...comment,
         content: await this.resolveContentImages(comment.content),
+        author: await withResolvedAvatar(comment.author, this.storage),
       })),
     );
   }
@@ -100,6 +103,7 @@ export class CommentsService {
     return {
       ...updated,
       content: await this.resolveContentImages(updated.content),
+      author: await withResolvedAvatar(updated.author, this.storage),
     };
   }
 

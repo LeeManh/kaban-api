@@ -31,10 +31,12 @@ import {
   CHECKLIST_ITEMS_SELECT,
   COUNT_SELECT,
   LABEL_SELECT,
+  resolveAssigneeAvatars,
   resolveCardCover,
   resolveDescriptionImages,
   withChecklistProgress,
 } from './card.selects';
+import { withResolvedAvatar } from '../users/user.selects';
 
 const ORDER_STEP = 1000;
 
@@ -112,6 +114,7 @@ export class CardsService {
       cards.map(async (card) => ({
         ...withChecklistProgress(card),
         cover: await resolveCardCover(card.cover, this.storage),
+        assignees: await resolveAssigneeAvatars(card.assignees, this.storage),
       })),
     );
   }
@@ -157,6 +160,7 @@ export class CardsService {
           this.storage,
           CARD_STORAGE_KEY_PREFIX,
         ),
+        author: await withResolvedAvatar(comment.author, this.storage),
       })),
     );
 
@@ -170,6 +174,7 @@ export class CardsService {
         card.description,
         this.storage,
       ),
+      assignees: await resolveAssigneeAvatars(card.assignees, this.storage),
     };
   }
 

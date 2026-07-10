@@ -14,9 +14,11 @@ import {
   CHECKLIST_ITEMS_SELECT,
   COUNT_SELECT,
   LABEL_SELECT,
+  resolveAssigneeAvatars,
   resolveCardCover,
   withChecklistProgress,
 } from '../cards/card.selects';
+import { PUBLIC_USER_SELECT, withResolvedAvatar } from '../users/user.selects';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
@@ -76,7 +78,7 @@ export class BoardsService {
       include: {
         members: {
           select: {
-            user: { select: { id: true, email: true, name: true } },
+            user: { select: PUBLIC_USER_SELECT },
           },
         },
         stars: { where: { userId }, select: { userId: true } },
@@ -110,7 +112,9 @@ export class BoardsService {
       ...rest,
       background: await this.resolveBackground(rest.background),
       isStarred: stars.length > 0,
-      members: members.map((m) => m.user),
+      members: await Promise.all(
+        members.map((m) => withResolvedAvatar(m.user, this.storage)),
+      ),
       lists: await Promise.all(
         lists.map(async ({ cards, ...list }) => ({
           ...list,
@@ -118,6 +122,10 @@ export class BoardsService {
             cards.map(async (card) => ({
               ...withChecklistProgress(card),
               cover: await resolveCardCover(card.cover, this.storage),
+              assignees: await resolveAssigneeAvatars(
+                card.assignees,
+                this.storage,
+              ),
             })),
           ),
         })),
@@ -172,14 +180,20 @@ export class BoardsService {
 
   async findMembers(boardId: string) {
     await this.ensureExists(boardId);
-    return this.prisma.boardMember.findMany({
+    const members = await this.prisma.boardMember.findMany({
       where: { boardId },
       select: {
         role: true,
-        user: { select: { id: true, email: true, name: true } },
+        user: { select: PUBLIC_USER_SELECT },
       },
       orderBy: [{ createdAt: 'asc' }],
     });
+    return Promise.all(
+      members.map(async (m) => ({
+        ...m,
+        user: await withResolvedAvatar(m.user, this.storage),
+      })),
+    );
   }
 
   async addMember(boardId: string, dto: AddMemberDto) {
@@ -205,13 +219,17 @@ export class BoardsService {
     if (member)
       throw new ConflictException('Người dùng đã là thành viên của board');
 
-    return this.prisma.boardMember.create({
+    const created = await this.prisma.boardMember.create({
       data: { boardId, userId: user.id, role },
       select: {
         role: true,
-        user: { select: { id: true, email: true, name: true } },
+        user: { select: PUBLIC_USER_SELECT },
       },
     });
+    return {
+      ...created,
+      user: await withResolvedAvatar(created.user, this.storage),
+    };
   }
 
   async updateMemberRole(
@@ -249,14 +267,18 @@ export class BoardsService {
         'Chỉ OWNER mới được thay đổi quyền liên quan đến ADMIN',
       );
 
-    return this.prisma.boardMember.update({
+    const updated = await this.prisma.boardMember.update({
       where: { boardId_userId: { boardId, userId: targetUserId } },
       data: { role: dto.role },
       select: {
         role: true,
-        user: { select: { id: true, email: true, name: true } },
+        user: { select: PUBLIC_USER_SELECT },
       },
     });
+    return {
+      ...updated,
+      user: await withResolvedAvatar(updated.user, this.storage),
+    };
   }
 
   async removeMember(boardId: string, targetUserId: string, callerId: string) {
