@@ -1,19 +1,14 @@
 import {
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
 
 const MAX_DESCRIPTION_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_DESCRIPTION_IMAGE_MIME = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-] as const;
 
 export class PresignDescriptionImageDto {
   @IsString()
@@ -22,7 +17,7 @@ export class PresignDescriptionImageDto {
   filename!: string;
 
   @IsString()
-  @IsIn(ALLOWED_DESCRIPTION_IMAGE_MIME)
+  @Matches(/^image\//, { message: 'contentType phải là ảnh (image/*)' })
   contentType!: string;
 
   @IsInt()

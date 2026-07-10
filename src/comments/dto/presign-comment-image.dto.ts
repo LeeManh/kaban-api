@@ -1,19 +1,14 @@
 import {
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
 
 const MAX_COMMENT_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_COMMENT_IMAGE_MIME = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-] as const;
 
 export class PresignCommentImageDto {
   @IsString()
@@ -22,7 +17,7 @@ export class PresignCommentImageDto {
   filename!: string;
 
   @IsString()
-  @IsIn(ALLOWED_COMMENT_IMAGE_MIME)
+  @Matches(/^image\//, { message: 'contentType phải là ảnh (image/*)' })
   contentType!: string;
 
   @IsInt()

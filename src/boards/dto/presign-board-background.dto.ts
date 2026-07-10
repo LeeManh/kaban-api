@@ -1,16 +1,13 @@
 import {
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
-import {
-  ALLOWED_BACKGROUND_MIME,
-  MAX_BACKGROUND_SIZE,
-} from '../board.constants';
+import { MAX_BACKGROUND_SIZE } from '../board.constants';
 
 export class PresignBoardBackgroundDto {
   @IsString()
@@ -19,7 +16,7 @@ export class PresignBoardBackgroundDto {
   filename!: string;
 
   @IsString()
-  @IsIn(ALLOWED_BACKGROUND_MIME)
+  @Matches(/^image\//, { message: 'contentType phải là ảnh (image/*)' })
   contentType!: string;
 
   @IsInt()

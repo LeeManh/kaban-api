@@ -1,20 +1,14 @@
 import {
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
 
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_AVATAR_MIME = [
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/webp',
-] as const;
 
 export class PresignAvatarDto {
   @IsString()
@@ -23,7 +17,7 @@ export class PresignAvatarDto {
   filename!: string;
 
   @IsString()
-  @IsIn(ALLOWED_AVATAR_MIME)
+  @Matches(/^image\//, { message: 'contentType phải là ảnh (image/*)' })
   contentType!: string;
 
   @IsInt()
