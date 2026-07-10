@@ -1,5 +1,6 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { EmailFrequency } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from './mail.service';
 import { MAIL_JOB, MAIL_QUEUE } from './mail.constants';
@@ -42,13 +43,22 @@ export class MailProcessor extends WorkerHost {
           select: {
             title: true,
             dueDate: true,
-            assignees: { select: { email: true } },
+            assignees: { select: { id: true, email: true } },
           },
         });
 
         if (!card || !card.dueDate) break;
 
         for (const assignee of card.assignees) {
+          const pref = await this.prisma.notificationPreference.findUnique({
+            where: { userId: assignee.id },
+          });
+          if (
+            pref?.emailFrequency === EmailFrequency.NEVER ||
+            pref?.dueDatesEnabled === false
+          )
+            continue;
+
           await this.queue.add(MAIL_JOB.SEND_EMAIL, {
             to: assignee.email,
             subject: `Nhắc hạn: ${card.title}`,

@@ -103,3 +103,10 @@ export interface LabelDeletedEvent {
 export interface NotificationCreatedEvent {
   notification: Notification;
 }
+
+export interface AttachmentAddedEvent {
+  boardId: string;
+  cardId: string;
+  filename: string;
+  actorId: string;
+}

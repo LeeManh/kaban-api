@@ -1,9 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { APP_EVENT } from '../events/events.constants';
+import type { AttachmentAddedEvent } from '../events/events.types';
 import { PresignAttachmentDto } from './dto/presign-attachment.dto';
 import { UpdateAttachmentDto } from './dto/update-attachment.dto';
 import { ATTACHMENT_JOB, ATTACHMENTS_QUEUE } from './attachment.constants';
@@ -13,6 +16,7 @@ export class AttachmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly eventEmitter: EventEmitter2,
     @InjectQueue(ATTACHMENTS_QUEUE) private readonly attachmentsQueue: Queue,
   ) {}
 
@@ -37,6 +41,13 @@ export class AttachmentsService {
         uploadedById: userId,
       },
     });
+
+    this.eventEmitter.emit(APP_EVENT.ATTACHMENT_ADDED, {
+      boardId,
+      cardId,
+      filename: attachment.filename,
+      actorId: userId,
+    } satisfies AttachmentAddedEvent);
 
     const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
     return { attachment, uploadUrl };

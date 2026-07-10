@@ -32,6 +32,14 @@ enum NotificationType {
   DUE_REMINDER
   COMMENT_MENTION
   BOARD_INVITATION
+  CARD_REMOVED
+  ATTACHMENT_ADDED
+  CARD_MOVED
+}
+
+enum EmailFrequency {
+  NEVER
+  INSTANT
 }
 
 enum InviteLinkPermission {
@@ -55,18 +63,19 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  refreshToken       RefreshToken[]
-  ownedBoards        Board[]            @relation("BoardOwner")
-  boardMembers       BoardMember[]
-  comments           Comment[]
-  attachments        Attachment[]
-  assignedCards      Card[]             @relation("CardAssignees")
-  notifications      Notification[]
-  boardViews         BoardView[]
-  boardStars         BoardStar[]
-  sentInvites        BoardInvite[]
-  createdInviteLinks BoardInviteLink[]
-  joinRequests       BoardJoinRequest[]
+  refreshToken           RefreshToken[]
+  ownedBoards            Board[]                 @relation("BoardOwner")
+  boardMembers           BoardMember[]
+  comments               Comment[]
+  attachments            Attachment[]
+  assignedCards          Card[]                  @relation("CardAssignees")
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  boardViews             BoardView[]
+  boardStars             BoardStar[]
+  sentInvites            BoardInvite[]
+  createdInviteLinks     BoardInviteLink[]
+  joinRequests           BoardJoinRequest[]
 
   @@map("users")
 }
@@ -233,6 +242,19 @@ model Notification {
 
   @@index([userId, isRead, createdAt])
   @@map("notifications")
+}
+
+model NotificationPreference {
+  userId                 String         @id @map("user_id")
+  emailFrequency         EmailFrequency @default(INSTANT) @map("email_frequency")
+  commentsEnabled        Boolean        @default(true) @map("comments_enabled")
+  dueDatesEnabled        Boolean        @default(true) @map("due_dates_enabled")
+  removedFromCardEnabled Boolean        @default(true) @map("removed_from_card_enabled")
+  attachmentsEnabled     Boolean        @default(true) @map("attachments_enabled")
+  cardsMovedEnabled      Boolean        @default(true) @map("cards_moved_enabled")
+  user                   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
 }
 
 model BoardView {

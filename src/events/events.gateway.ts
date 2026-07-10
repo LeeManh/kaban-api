@@ -62,8 +62,6 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         throw new Error('token revoked');
 
       (client.data as { userId?: string }).userId = payload.sub;
-      // Tự join room cá nhân — nhận notification riêng của mình (không cần
-      // "joinBoard" thủ công như room board, vì đây gắn liền danh tính user).
       await client.join(this.userRoom(payload.sub));
       this.logger.log(`Client connected: ${client.id} (user ${payload.sub})`);
     } catch {
