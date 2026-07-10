@@ -31,7 +31,7 @@ export class NotificationsListener {
         userId: payload.userId,
         type: NotificationType.CARD_ASSIGNED,
         message: `Bạn được giao thẻ "${card.title}"`,
-        link: `/boards/${payload.boardId}/cards/${payload.cardId}`,
+        link: `/boards/${payload.boardId}?card=${payload.cardId}`,
       });
       return;
     }
@@ -41,7 +41,7 @@ export class NotificationsListener {
       userId: payload.userId,
       type: NotificationType.CARD_REMOVED,
       message: `Bạn đã bị gỡ khỏi thẻ "${card.title}"`,
-      link: `/boards/${payload.boardId}/cards/${payload.cardId}`,
+      link: `/boards/${payload.boardId}?card=${payload.cardId}`,
     });
   }
 
@@ -63,7 +63,7 @@ export class NotificationsListener {
           userId,
           type: NotificationType.CARD_MOVED,
           message: `Thẻ "${card.title}" đã được di chuyển`,
-          link: `/boards/${payload.boardId}/cards/${payload.cardId}`,
+          link: `/boards/${payload.boardId}?card=${payload.cardId}`,
         }),
       ),
     );
@@ -87,7 +87,7 @@ export class NotificationsListener {
           userId,
           type: NotificationType.ATTACHMENT_ADDED,
           message: `"${payload.filename}" đã được thêm vào thẻ "${card.title}"`,
-          link: `/boards/${payload.boardId}/cards/${payload.cardId}`,
+          link: `/boards/${payload.boardId}?card=${payload.cardId}`,
         }),
       ),
     );
@@ -111,7 +111,7 @@ export class NotificationsListener {
           userId,
           type: NotificationType.COMMENT_MENTION,
           message: `Có bình luận mới trên thẻ "${card.title}"`,
-          link: `/boards/${payload.boardId}/cards/${payload.comment.cardId}`,
+          link: `/boards/${payload.boardId}?card=${payload.comment.cardId}`,
         }),
       ),
     );

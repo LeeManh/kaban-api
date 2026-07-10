@@ -200,7 +200,7 @@ export class InviteLinksService {
           userId: admin.userId,
           type: NotificationType.BOARD_INVITATION,
           message: `${requesterName} muốn tham gia board "${board?.name ?? ''}"`,
-          link: `/boards/${boardId}/join-requests`,
+          link: `/boards/${boardId}`,
         }),
       ),
     );

@@ -1,6 +1,8 @@
 export interface CardAssignedData {
   to: string;
   cardTitle: string;
+  boardId: string;
+  cardId: string;
 }
 
 export interface DueReminderData {

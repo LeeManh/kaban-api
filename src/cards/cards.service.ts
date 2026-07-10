@@ -379,7 +379,7 @@ export class CardsService {
     if (user) {
       await this.mailQueue.add(
         MAIL_JOB.CARD_ASSIGNED,
-        { to: user.email, cardTitle: card.title },
+        { to: user.email, cardTitle: card.title, boardId, cardId },
         {
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },

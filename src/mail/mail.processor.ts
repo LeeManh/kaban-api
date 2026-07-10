@@ -1,6 +1,9 @@
+import { Inject } from '@nestjs/common';
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { type ConfigType } from '@nestjs/config';
 import { Job, Queue } from 'bullmq';
 import { EmailFrequency } from 'generated/prisma/enums';
+import { appConfig } from '../config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from './mail.service';
 import { MAIL_JOB, MAIL_QUEUE } from './mail.constants';
@@ -17,6 +20,8 @@ export class MailProcessor extends WorkerHost {
   constructor(
     private readonly mail: MailService,
     private readonly prisma: PrismaService,
+    @Inject(appConfig.KEY)
+    private readonly appCfg: ConfigType<typeof appConfig>,
     @InjectQueue(MAIL_QUEUE) private readonly queue: Queue,
   ) {
     super();
@@ -25,12 +30,12 @@ export class MailProcessor extends WorkerHost {
   async process(job: Job): Promise<void> {
     switch (job.name) {
       case MAIL_JOB.CARD_ASSIGNED: {
-        const { to, cardTitle } = job.data as CardAssignedData;
-        await this.mail.sendMail({
+        const { to, cardTitle, boardId, cardId } = job.data as CardAssignedData;
+        await this.sendTemplateEmail({
           to,
           subject: `Bạn được giao thẻ: ${cardTitle}`,
           template: 'card-assigned',
-          context: { cardTitle },
+          context: { cardTitle, boardId, cardId },
         });
         break;
       }
@@ -43,11 +48,17 @@ export class MailProcessor extends WorkerHost {
           select: {
             title: true,
             dueDate: true,
+            list: { select: { boardId: true } },
             assignees: { select: { id: true, email: true } },
           },
         });
 
         if (!card || !card.dueDate) break;
+
+        const dueDateText = new Intl.DateTimeFormat('vi-VN', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }).format(card.dueDate);
 
         for (const assignee of card.assignees) {
           const pref = await this.prisma.notificationPreference.findUnique({
@@ -63,7 +74,12 @@ export class MailProcessor extends WorkerHost {
             to: assignee.email,
             subject: `Nhắc hạn: ${card.title}`,
             template: 'due-reminder',
-            context: { cardTitle: card.title },
+            context: {
+              cardTitle: card.title,
+              dueDateText,
+              boardId: card.list.boardId,
+              cardId,
+            },
           } satisfies SendEmailData);
         }
         break;
@@ -71,13 +87,13 @@ export class MailProcessor extends WorkerHost {
 
       case MAIL_JOB.SEND_EMAIL: {
         const { to, subject, template, context } = job.data as SendEmailData;
-        await this.mail.sendMail({ to, subject, template, context });
+        await this.sendTemplateEmail({ to, subject, template, context });
         break;
       }
 
       case MAIL_JOB.PASSWORD_RESET: {
         const { to, resetUrl } = job.data as PasswordResetData;
-        await this.mail.sendMail({
+        await this.sendTemplateEmail({
           to,
           subject: 'Đặt lại mật khẩu Kanvas',
           template: 'forgot-password',
@@ -89,7 +105,7 @@ export class MailProcessor extends WorkerHost {
       case MAIL_JOB.BOARD_INVITATION: {
         const { to, boardName, invitedByName, acceptUrl } =
           job.data as BoardInvitationData;
-        await this.mail.sendMail({
+        await this.sendTemplateEmail({
           to,
           subject: `${invitedByName} đã mời bạn vào board "${boardName}"`,
           template: 'board-invitation',
@@ -98,5 +114,17 @@ export class MailProcessor extends WorkerHost {
         break;
       }
     }
+  }
+
+  private async sendTemplateEmail(params: {
+    to: string;
+    subject: string;
+    template: string;
+    context: Record<string, unknown>;
+  }) {
+    await this.mail.sendMail({
+      ...params,
+      context: { ...params.context, frontendUrl: this.appCfg.frontendUrl },
+    });
   }
 }
