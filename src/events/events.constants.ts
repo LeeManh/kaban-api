@@ -35,4 +35,5 @@ export const SOCKET_EVENT = {
   LABEL_UPDATED: 'labelUpdated',
   LABEL_DELETED: 'labelDeleted',
   NOTIFICATION_CREATED: 'notificationCreated',
+  ATTACHMENT_ADDED: 'attachmentAdded',
 } as const;

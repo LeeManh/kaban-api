@@ -18,6 +18,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { RedisService } from 'src/redis/redis.service';
 import { APP_EVENT, SOCKET_EVENT } from './events.constants';
 import type {
+  AttachmentAddedEvent,
   CardAssigneeChangedEvent,
   CardCreatedEvent,
   CardDeletedEvent,
@@ -187,6 +188,11 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server
       .to(this.userRoom(payload.notification.userId))
       .emit(SOCKET_EVENT.NOTIFICATION_CREATED, payload.notification);
+  }
+
+  @OnEvent(APP_EVENT.ATTACHMENT_ADDED)
+  handleAttachmentAdded(payload: AttachmentAddedEvent) {
+    this.broadcast(payload.boardId, SOCKET_EVENT.ATTACHMENT_ADDED, payload);
   }
 
   private broadcast(boardId: string, event: string, payload: unknown) {
