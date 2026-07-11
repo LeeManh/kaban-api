@@ -166,16 +166,35 @@ export class BoardsService {
     return { boardId, isStarred: false };
   }
 
-  findRecentlyViewed(userId: string, limit = 10) {
-    return this.prisma.boardView.findMany({
+  async findRecentlyViewed(userId: string, limit = 5) {
+    const views = await this.prisma.boardView.findMany({
       where: { userId },
       orderBy: { viewedAt: 'desc' },
       take: limit,
       select: {
         viewedAt: true,
-        board: { select: { id: true, name: true, createdAt: true } },
+        board: {
+          select: {
+            id: true,
+            name: true,
+            background: true,
+            createdAt: true,
+            stars: { where: { userId }, select: { userId: true } },
+          },
+        },
       },
     });
+
+    return Promise.all(
+      views.map(async ({ viewedAt, board: { stars, ...board } }) => ({
+        viewedAt,
+        board: {
+          ...board,
+          background: await this.resolveBackground(board.background),
+          isStarred: stars.length > 0,
+        },
+      })),
+    );
   }
 
   async findMembers(boardId: string) {
