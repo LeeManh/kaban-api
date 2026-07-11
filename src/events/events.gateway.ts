@@ -40,7 +40,7 @@ import type {
 
 type SocketData = { userId?: string; jti?: string };
 
-@WebSocketGateway({ cors: { origin: '*' } })
+@WebSocketGateway({ cors: { origin: process.env.FRONTEND_URL } })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
