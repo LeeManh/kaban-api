@@ -15,6 +15,8 @@ export const APP_EVENT = {
   LABEL_DELETED: 'label.deleted',
   NOTIFICATION_CREATED: 'notification.created',
   ATTACHMENT_ADDED: 'attachment.added',
+  USER_LOGGED_OUT: 'user.loggedOut',
+  BOARD_MEMBER_REMOVED: 'board.memberRemoved',
 } as const;
 
 export const SOCKET_EVENT = {

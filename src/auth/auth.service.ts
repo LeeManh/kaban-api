@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { type ConfigType } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import { Queue } from 'bullmq';
 import { appConfig, jwtConfig } from 'src/config';
@@ -22,6 +23,8 @@ import { Prisma } from 'generated/prisma/client';
 import { RedisService } from 'src/redis/redis.service';
 import { MAIL_JOB, MAIL_QUEUE } from 'src/mail/mail.constants';
 import type { PasswordResetData } from 'src/mail/mail.types';
+import { APP_EVENT } from '../events/events.constants';
+import type { UserLoggedOutEvent } from '../events/events.types';
 import { InvitesService } from '../invites/invites.service';
 import { InviteLinksService } from '../invites/invite-links.service';
 
@@ -41,6 +44,7 @@ export class AuthService {
     private readonly redis: RedisService,
     private readonly invites: InvitesService,
     private readonly inviteLinks: InviteLinksService,
+    private readonly eventEmitter: EventEmitter2,
     @InjectQueue(MAIL_QUEUE) private readonly mailQueue: Queue,
   ) {}
 
@@ -145,6 +149,11 @@ export class AuthService {
     if (user.jti && user.exp) {
       await this.redis.blacklist(user.jti, user.exp);
     }
+
+    this.eventEmitter.emit(APP_EVENT.USER_LOGGED_OUT, {
+      userId: user.sub,
+      jti: user.jti,
+    } satisfies UserLoggedOutEvent);
   }
 
   async logoutAll(userId: string) {
@@ -152,6 +161,10 @@ export class AuthService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+
+    this.eventEmitter.emit(APP_EVENT.USER_LOGGED_OUT, {
+      userId,
+    } satisfies UserLoggedOutEvent);
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {

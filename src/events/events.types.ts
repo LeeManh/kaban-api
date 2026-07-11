@@ -110,3 +110,13 @@ export interface AttachmentAddedEvent {
   filename: string;
   actorId: string;
 }
+
+export interface UserLoggedOutEvent {
+  userId: string;
+  jti?: string;
+}
+
+export interface BoardMemberRemovedEvent {
+  boardId: string;
+  userId: string;
+}

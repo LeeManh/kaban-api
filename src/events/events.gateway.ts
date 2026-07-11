@@ -19,6 +19,7 @@ import { RedisService } from 'src/redis/redis.service';
 import { APP_EVENT, SOCKET_EVENT } from './events.constants';
 import type {
   AttachmentAddedEvent,
+  BoardMemberRemovedEvent,
   CardAssigneeChangedEvent,
   CardCreatedEvent,
   CardDeletedEvent,
@@ -34,7 +35,10 @@ import type {
   ListMovedEvent,
   ListUpdatedEvent,
   NotificationCreatedEvent,
+  UserLoggedOutEvent,
 } from './events.types';
+
+type SocketData = { userId?: string; jti?: string };
 
 @WebSocketGateway({ cors: { origin: '*' } })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -62,7 +66,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (payload.jti && (await this.blacklist.isBlacklisted(payload.jti)))
         throw new Error('token revoked');
 
-      (client.data as { userId?: string }).userId = payload.sub;
+      (client.data as SocketData).userId = payload.sub;
+      (client.data as SocketData).jti = payload.jti;
       await client.join(this.userRoom(payload.sub));
       this.logger.log(`Client connected: ${client.id} (user ${payload.sub})`);
     } catch {
@@ -80,7 +85,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { boardId?: string },
   ) {
-    const userId = (client.data as { userId?: string }).userId;
+    const userId = (client.data as SocketData).userId;
     const boardId = data?.boardId;
     if (!userId || !boardId) return { ok: false, error: 'invalid_payload' };
 
@@ -193,6 +198,32 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @OnEvent(APP_EVENT.ATTACHMENT_ADDED)
   handleAttachmentAdded(payload: AttachmentAddedEvent) {
     this.broadcast(payload.boardId, SOCKET_EVENT.ATTACHMENT_ADDED, payload);
+  }
+
+  @OnEvent(APP_EVENT.USER_LOGGED_OUT)
+  async handleUserLoggedOut(payload: UserLoggedOutEvent) {
+    const sockets = await this.server
+      .in(this.userRoom(payload.userId))
+      .fetchSockets();
+    for (const socket of sockets) {
+      const data = socket.data as SocketData;
+      if (!payload.jti || data.jti === payload.jti) {
+        socket.disconnect(true);
+      }
+    }
+  }
+
+  @OnEvent(APP_EVENT.BOARD_MEMBER_REMOVED)
+  async handleBoardMemberRemoved(payload: BoardMemberRemovedEvent) {
+    const sockets = await this.server
+      .in(this.room(payload.boardId))
+      .fetchSockets();
+    for (const socket of sockets) {
+      const data = socket.data as SocketData;
+      if (data.userId === payload.userId) {
+        socket.leave(this.room(payload.boardId));
+      }
+    }
   }
 
   private broadcast(boardId: string, event: string, payload: unknown) {

@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { randomUUID } from 'crypto';
 import { Role } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,6 +20,8 @@ import {
   withChecklistProgress,
 } from '../cards/card.selects';
 import { PUBLIC_USER_SELECT, withResolvedAvatar } from '../users/user.selects';
+import { APP_EVENT } from '../events/events.constants';
+import type { BoardMemberRemovedEvent } from '../events/events.types';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
@@ -33,6 +36,7 @@ export class BoardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(userId: string, dto: CreateBoardDto) {
@@ -326,6 +330,12 @@ export class BoardsService {
       }),
       ...(await this.buildUnassignFromBoardCardsOps(boardId, targetUserId)),
     ]);
+
+    this.eventEmitter.emit(APP_EVENT.BOARD_MEMBER_REMOVED, {
+      boardId,
+      userId: targetUserId,
+    } satisfies BoardMemberRemovedEvent);
+
     return { boardId, userId: targetUserId };
   }
 
@@ -348,6 +358,12 @@ export class BoardsService {
       }),
       ...(await this.buildUnassignFromBoardCardsOps(boardId, userId)),
     ]);
+
+    this.eventEmitter.emit(APP_EVENT.BOARD_MEMBER_REMOVED, {
+      boardId,
+      userId,
+    } satisfies BoardMemberRemovedEvent);
+
     return { boardId, userId };
   }
 
