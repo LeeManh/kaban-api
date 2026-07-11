@@ -16,7 +16,7 @@ export class PresignAttachmentDto {
   filename!: string;
 
   @IsString()
-  @IsIn(ALLOWED_MIME as unknown as string[])
+  @IsIn(ALLOWED_MIME)
   contentType!: string;
 
   @IsInt()

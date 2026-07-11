@@ -34,7 +34,7 @@ export class BoardRolesGuard implements CanActivate {
 
     const request = context
       .switchToHttp()
-      .getRequest<Request & { user?: JwtPayload }>();
+      .getRequest<Request & { user?: JwtPayload; boardRole?: Role }>();
     const userId = request.user?.sub;
     if (!userId) throw new ForbiddenException('Không xác định được người dùng');
 
@@ -55,7 +55,7 @@ export class BoardRolesGuard implements CanActivate {
         'Bạn không đủ quyền thực hiện hành động này',
       );
 
-    (request as any).boardRole = membership.role;
+    request.boardRole = membership.role;
     return true;
   }
 
