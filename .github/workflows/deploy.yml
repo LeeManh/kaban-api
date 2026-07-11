@@ -1,8 +1,8 @@
-name: Production Deployment Pipeline
+name: CI/CD Deployment Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   test:
@@ -16,6 +16,7 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npx prisma generate
       - run: npm run build
       - run: npm run lint
       - run: npx jest --passWithNoTests
@@ -34,6 +35,12 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /home/ubuntu/kaban-api
-            git pull origin main
-            docker compose -f docker-compose.prod.yml up -d --build
-            docker compose -f docker-compose.prod.yml exec -T nestjs-app npx prisma migrate deploy
+
+            git fetch origin
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+
+            docker-compose -f docker-compose.prod.yml up -d --build
+
+            sleep 5
+            docker-compose -f docker-compose.prod.yml exec -T nestjs-app npx prisma migrate deploy
