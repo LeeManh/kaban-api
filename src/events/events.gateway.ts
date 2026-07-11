@@ -222,6 +222,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const data = socket.data as SocketData;
       if (data.userId === payload.userId) {
         socket.leave(this.room(payload.boardId));
+        socket.emit(SOCKET_EVENT.BOARD_MEMBER_REMOVED, {
+          boardId: payload.boardId,
+        });
       }
     }
   }
