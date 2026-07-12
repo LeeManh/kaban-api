@@ -17,6 +17,7 @@ import { ListsService } from './lists.service';
 import { CreateListDto } from './dto/create-list.dto';
 import { UpdateListDto } from './dto/update-list.dto';
 import { MoveListDto } from './dto/move-list.dto';
+import { CopyListDto } from './dto/copy-list.dto';
 
 @Controller('boards/:boardId/lists')
 @UseGuards(BoardRolesGuard)
@@ -63,6 +64,18 @@ export class ListsController {
     @GetUser('sub') actorId: string,
   ) {
     return this.listsService.move(boardId, listId, dto, actorId);
+  }
+
+  @Post(':listId/copy')
+  @Roles(Role.MEMBER)
+  @ResponseMessage('Sao chép list thành công')
+  copyList(
+    @Param('boardId') boardId: string,
+    @Param('listId') listId: string,
+    @Body() dto: CopyListDto,
+    @GetUser('sub') actorId: string,
+  ) {
+    return this.listsService.copyList(boardId, listId, dto, actorId);
   }
 
   @Delete(':listId')

@@ -15,6 +15,7 @@ import type {
 import { CreateListDto } from './dto/create-list.dto';
 import { UpdateListDto } from './dto/update-list.dto';
 import { MoveListDto } from './dto/move-list.dto';
+import { CopyListDto } from './dto/copy-list.dto';
 
 const ORDER_STEP = 1000;
 
@@ -117,6 +118,93 @@ export class ListsService {
       order: list.order,
       actorId,
     } satisfies ListMovedEvent);
+
+    return list;
+  }
+
+  async copyList(
+    boardId: string,
+    listId: string,
+    dto: CopyListDto,
+    actorId: string,
+  ) {
+    const source = await this.prisma.list.findUnique({
+      where: { id: listId },
+      select: {
+        boardId: true,
+        title: true,
+        order: true,
+        cards: {
+          orderBy: { order: 'asc' },
+          include: {
+            labels: { select: { id: true } },
+            checklists: {
+              orderBy: { order: 'asc' },
+              include: { items: { orderBy: { order: 'asc' } } },
+            },
+          },
+        },
+      },
+    });
+    if (!source || source.boardId !== boardId)
+      throw new NotFoundException('Không tìm thấy list trong board này');
+
+    const next = await this.prisma.list.findFirst({
+      where: { boardId, order: { gt: source.order } },
+      orderBy: { order: 'asc' },
+      select: { order: true },
+    });
+    const order = next
+      ? (source.order + next.order) / 2
+      : source.order + ORDER_STEP;
+
+    const list = await this.prisma.$transaction(
+      async (tx) => {
+        const newList = await tx.list.create({
+          data: {
+            title: dto.title ?? `${source.title} (Copy)`,
+            order,
+            boardId,
+          },
+        });
+
+        for (const [index, card] of source.cards.entries()) {
+          await tx.card.create({
+            data: {
+              title: card.title,
+              description: card.description,
+              priority: card.priority,
+              cover: card.cover,
+              order: (index + 1) * ORDER_STEP,
+              listId: newList.id,
+              labels: { connect: card.labels.map((l) => ({ id: l.id })) },
+              checklists: {
+                create: card.checklists.map((cl) => ({
+                  title: cl.title,
+                  order: cl.order,
+                  items: {
+                    create: cl.items.map((item) => ({
+                      content: item.content,
+                      order: item.order,
+                      isDone: false,
+                    })),
+                  },
+                })),
+              },
+            },
+          });
+        }
+
+        return newList;
+      },
+      { timeout: 30_000 },
+    );
+
+    this.eventEmitter.emit(APP_EVENT.LIST_CREATED, {
+      boardId,
+      list,
+      actorId,
+    } satisfies ListCreatedEvent);
 
     return list;
   }
