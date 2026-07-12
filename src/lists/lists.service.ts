@@ -18,6 +18,7 @@ import { CreateListDto } from './dto/create-list.dto';
 import { UpdateListDto } from './dto/update-list.dto';
 import { MoveListDto } from './dto/move-list.dto';
 import { CopyListDto } from './dto/copy-list.dto';
+import { MoveAllCardsDto } from './dto/move-all-cards.dto';
 
 const ORDER_STEP = 1000;
 
@@ -356,6 +357,63 @@ export class ListsService {
     } satisfies ListCreatedEvent);
 
     return list;
+  }
+
+  async moveAllCards(
+    boardId: string,
+    listId: string,
+    dto: MoveAllCardsDto,
+    actorId: string,
+  ) {
+    await this.ensureListInBoard(boardId, listId);
+    await this.ensureListInBoard(boardId, dto.targetListId);
+
+    if (listId === dto.targetListId)
+      throw new BadRequestException('List đích phải khác list nguồn');
+
+    const cards = await this.prisma.card.findMany({
+      where: { listId },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+
+    const lastInTarget = await this.prisma.card.findFirst({
+      where: { listId: dto.targetListId },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+    let nextOrder = (lastInTarget?.order ?? 0) + ORDER_STEP;
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        for (const card of cards) {
+          await tx.card.update({
+            where: { id: card.id },
+            data: { listId: dto.targetListId, order: nextOrder },
+          });
+          nextOrder += ORDER_STEP;
+        }
+      },
+      { timeout: 30_000 },
+    );
+
+    const [sourceList, targetList] = await Promise.all([
+      this.prisma.list.findUniqueOrThrow({ where: { id: listId } }),
+      this.prisma.list.findUniqueOrThrow({ where: { id: dto.targetListId } }),
+    ]);
+
+    this.eventEmitter.emit(APP_EVENT.LIST_UPDATED, {
+      boardId,
+      list: sourceList,
+      actorId,
+    } satisfies ListUpdatedEvent);
+    this.eventEmitter.emit(APP_EVENT.LIST_UPDATED, {
+      boardId,
+      list: targetList,
+      actorId,
+    } satisfies ListUpdatedEvent);
+
+    return { movedCount: cards.length };
   }
 
   async remove(boardId: string, listId: string, actorId: string) {

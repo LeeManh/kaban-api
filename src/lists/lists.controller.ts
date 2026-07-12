@@ -18,6 +18,7 @@ import { CreateListDto } from './dto/create-list.dto';
 import { UpdateListDto } from './dto/update-list.dto';
 import { MoveListDto } from './dto/move-list.dto';
 import { CopyListDto } from './dto/copy-list.dto';
+import { MoveAllCardsDto } from './dto/move-all-cards.dto';
 
 @Controller('boards/:boardId/lists')
 @UseGuards(BoardRolesGuard)
@@ -76,6 +77,18 @@ export class ListsController {
     @GetUser('sub') actorId: string,
   ) {
     return this.listsService.copyList(boardId, listId, dto, actorId);
+  }
+
+  @Patch(':listId/move-all-cards')
+  @Roles(Role.MEMBER)
+  @ResponseMessage('Di chuyển toàn bộ card thành công')
+  moveAllCards(
+    @Param('boardId') boardId: string,
+    @Param('listId') listId: string,
+    @Body() dto: MoveAllCardsDto,
+    @GetUser('sub') actorId: string,
+  ) {
+    return this.listsService.moveAllCards(boardId, listId, dto, actorId);
   }
 
   @Delete(':listId')
