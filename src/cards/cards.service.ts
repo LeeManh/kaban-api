@@ -65,12 +65,9 @@ export class CardsService {
   ) {
     await this.ensureListInBoard(boardId, listId);
 
-    const last = await this.prisma.card.findFirst({
-      where: { listId },
-      orderBy: { order: 'desc' },
-      select: { order: true },
-    });
-    const order = (last?.order ?? 0) + ORDER_STEP;
+    const order = dto.addToTop
+      ? await this.computeTopOrder(listId)
+      : await this.computeBottomOrder(listId);
 
     const card = await this.prisma.card.create({
       data: {
@@ -102,6 +99,24 @@ export class CardsService {
     } satisfies CardCreatedEvent);
 
     return card;
+  }
+
+  private async computeBottomOrder(listId: string): Promise<number> {
+    const last = await this.prisma.card.findFirst({
+      where: { listId },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+    return (last?.order ?? 0) + ORDER_STEP;
+  }
+
+  private async computeTopOrder(listId: string): Promise<number> {
+    const first = await this.prisma.card.findFirst({
+      where: { listId },
+      orderBy: { order: 'asc' },
+      select: { order: true },
+    });
+    return first ? first.order - ORDER_STEP : ORDER_STEP;
   }
 
   async findAll(boardId: string, listId: string) {

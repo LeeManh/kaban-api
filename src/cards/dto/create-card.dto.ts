@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsISO8601,
@@ -37,4 +38,8 @@ export class CreateCardDto {
   @IsString()
   @MaxLength(500)
   cover?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  addToTop?: boolean;
 }
