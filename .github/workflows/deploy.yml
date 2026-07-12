@@ -1,8 +1,11 @@
-name: Production Deployment Pipeline
+name: CI/CD Deployment Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
+
+env:
+  IMAGE_NAME: ghcr.io/leemanh/kaban-api
 
 jobs:
   test:
@@ -16,16 +19,36 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npx prisma generate
       - run: npm run build
       - run: npm run lint
       - run: npx jest --passWithNoTests
 
-  deploy:
+  build-and-push:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
       - name: Execute Remote SSH Deployment Script
         uses: appleboy/ssh-action@master
         with:
@@ -34,6 +57,14 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /home/ubuntu/kaban-api
-            git pull origin main
-            docker compose -f docker-compose.prod.yml up -d --build
+
+            git fetch origin
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+
+            sleep 5
             docker compose -f docker-compose.prod.yml exec -T nestjs-app npx prisma migrate deploy

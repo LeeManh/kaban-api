@@ -1,8 +1,6 @@
 services:
   nestjs-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/leemanh/kaban-api:latest
     container_name: kaban-app
     restart: unless-stopped
     env_file:
