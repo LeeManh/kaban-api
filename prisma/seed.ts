@@ -4,8 +4,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import { CardPriority, Role } from '../generated/prisma/enums';
 
-const SEED_BOARD_NAME = 'Seed Test Board';
-const SEED_PASSWORD = 'Password123!';
+const SEED_BOARD_NAME = 'Kanvas Product Launch';
+const SEED_PASSWORD = '12345678';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -20,8 +20,8 @@ async function upsertUser(email: string, name: string) {
 }
 
 async function main() {
-  const owner = await upsertUser('owner@kaban.dev', 'Avery Reyes');
-  const member = await upsertUser('member@kaban.dev', 'Jamie Doe');
+  const owner = await upsertUser('lemanhddt@gmail.com', 'Manh Lee');
+  const member1 = await upsertUser('contact.vocatomo@gmail.com', 'Vocatomo');
 
   const existing = await prisma.board.findFirst({
     where: { name: SEED_BOARD_NAME, ownerId: owner.id },
@@ -39,16 +39,15 @@ async function main() {
       members: {
         create: [
           { userId: owner.id, role: Role.OWNER },
-          { userId: member.id, role: Role.ADMIN },
+          { userId: member1.id, role: Role.MEMBER },
         ],
       },
       stars: { create: [{ userId: owner.id }] },
       views: { create: [{ userId: owner.id }] },
       labels: {
         create: [
+          { name: 'Design', color: '#a855f7' },
           { name: 'Bug', color: '#ef4444' },
-          { name: 'Feature', color: '#22c55e' },
-          { name: 'Urgent', color: '#f59e0b' },
         ],
       },
     },
@@ -59,73 +58,46 @@ async function main() {
     board.labels.map((l) => [l.name, l.id]),
   );
 
+  const backlogList = await prisma.list.create({
+    data: { title: 'Backlog', order: 1000, boardId: board.id },
+  });
   const todoList = await prisma.list.create({
-    data: { title: 'To Do', order: 1000, boardId: board.id },
+    data: { title: 'To Do', order: 2000, boardId: board.id },
   });
   const inProgressList = await prisma.list.create({
-    data: { title: 'In Progress', order: 2000, boardId: board.id },
+    data: { title: 'In Progress', order: 3000, boardId: board.id },
   });
-  const doneList = await prisma.list.create({
-    data: { title: 'Done', order: 3000, boardId: board.id },
+  const reviewList = await prisma.list.create({
+    data: { title: 'Review', order: 4000, boardId: board.id },
   });
-
-  await prisma.card.create({
-    data: {
-      title: 'Setup CI/CD pipeline',
-      description: 'Cấu hình GitHub Actions để build và deploy tự động.',
-      order: 1000,
-      priority: CardPriority.HIGH,
-      listId: todoList.id,
-      labels: { connect: [{ id: labelByName.Feature }] },
-      assignees: { connect: [{ id: owner.id }] },
-      checklists: {
-        create: [
-          {
-            title: 'Checklist triển khai',
-            order: 1000,
-            items: {
-              create: [
-                { content: 'Viết workflow build', order: 1000, isDone: true },
-                { content: 'Viết workflow deploy', order: 2000, isDone: false },
-              ],
-            },
-          },
-        ],
-      },
-    },
+  await prisma.list.create({
+    data: { title: 'Done', order: 5000, boardId: board.id },
   });
 
   await prisma.card.create({
     data: {
-      title: 'Research competitor pricing',
-      order: 2000,
-      priority: CardPriority.LOW,
-      listId: todoList.id,
-    },
-  });
-
-  const oauthCard = await prisma.card.create({
-    data: {
-      title: 'Implement OAuth login',
-      description: 'Tích hợp đăng nhập Google/GitHub.',
+      title: 'Thiết kế trang landing page',
       order: 1000,
-      priority: CardPriority.HIGH,
+      priority: CardPriority.MEDIUM,
       dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      listId: inProgressList.id,
-      labels: {
-        connect: [{ id: labelByName.Feature }, { id: labelByName.Urgent }],
-      },
-      assignees: { connect: [{ id: owner.id }, { id: member.id }] },
+      reminderOffsetMinutes: 60,
+      listId: todoList.id,
+      labels: { connect: [{ id: labelByName.Design }] },
+      assignees: { connect: [{ id: member1.id }] },
       checklists: {
         create: [
           {
-            title: 'OAuth providers',
+            title: 'Checklist thiết kế',
             order: 1000,
             items: {
               create: [
-                { content: 'Google', order: 1000, isDone: true },
-                { content: 'GitHub', order: 2000, isDone: false },
-                { content: 'Facebook', order: 3000, isDone: false },
+                { content: 'Wireframe', order: 1000, isDone: true },
+                {
+                  content: 'Review với team',
+                  order: 2000,
+                  isDone: false,
+                },
+                { content: 'Approve final', order: 3000, isDone: false },
               ],
             },
           },
@@ -134,48 +106,64 @@ async function main() {
     },
   });
 
-  await prisma.comment.createMany({
-    data: [
-      {
-        content: 'Đã xong phần Google OAuth, đang làm GitHub.',
-        cardId: oauthCard.id,
-        authorId: owner.id,
-      },
-      {
-        content: 'Nhớ thêm test cho refresh token nhé.',
-        cardId: oauthCard.id,
-        authorId: member.id,
-      },
-    ],
+  const bugCard = await prisma.card.create({
+    data: {
+      title: 'Fix bug đăng nhập trên Safari',
+      order: 1000,
+      priority: CardPriority.HIGH,
+      dueDate: new Date(Date.now() + 15 * 60 * 1000),
+      reminderOffsetMinutes: 10,
+      listId: inProgressList.id,
+      labels: { connect: [{ id: labelByName.Bug }] },
+      assignees: { connect: [{ id: owner.id }] },
+    },
+  });
+
+  await prisma.comment.create({
+    data: {
+      content:
+        'Đã repro được, lỗi do Safari không hỗ trợ đúng cookie SameSite=None 🔥',
+      cardId: bugCard.id,
+      authorId: owner.id,
+    },
   });
 
   await prisma.attachment.create({
     data: {
-      filename: 'oauth-flow-diagram.png',
-      key: `cards/${oauthCard.id}/seed-oauth-flow-diagram.png`,
+      filename: 'safari-bug-screenshot.png',
+      key: `cards/${bugCard.id}/seed-safari-bug-screenshot.png`,
       mimeType: 'image/png',
       size: 102400,
-      cardId: oauthCard.id,
+      cardId: bugCard.id,
       uploadedById: owner.id,
     },
   });
 
   await prisma.card.create({
     data: {
-      title: 'Design landing page',
+      title: 'Viết tài liệu API cho FE',
+      description:
+        'Tổng hợp lại toàn bộ endpoint hiện có kèm ví dụ request/response.\n\n![sơ đồ](cards/seed-api-doc-diagram.png)',
       order: 1000,
-      priority: CardPriority.MEDIUM,
-      isDone: true,
-      listId: doneList.id,
-      labels: { connect: [{ id: labelByName.Feature }] },
-      assignees: { connect: [{ id: member.id }] },
+      priority: CardPriority.LOW,
+      listId: reviewList.id,
+      assignees: { connect: [{ id: member1.id }] },
+    },
+  });
+
+  await prisma.card.create({
+    data: {
+      title: 'Research đối thủ cạnh tranh',
+      order: 1000,
+      priority: CardPriority.LOW,
+      listId: backlogList.id,
     },
   });
 
   console.log('Seed thành công!');
   console.log(`Board: ${board.name} (${board.id})`);
   console.log(`Owner: ${owner.email} / ${SEED_PASSWORD}`);
-  console.log(`Member: ${member.email} / ${SEED_PASSWORD}`);
+  console.log(`Member1: ${member1.email} / ${SEED_PASSWORD}`);
 }
 
 main()
