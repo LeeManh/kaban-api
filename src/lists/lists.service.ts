@@ -9,6 +9,8 @@ import { Role } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { APP_EVENT } from '../events/events.constants';
 import type {
+  CardAssigneeChangedEvent,
+  CardMovedEvent,
   ListCreatedEvent,
   ListDeletedEvent,
   ListMovedEvent,
@@ -149,6 +151,8 @@ export class ListsService {
       dto.position ?? Infinity,
     );
 
+    const removedAssignees: { cardId: string; userId: string }[] = [];
+
     const list = await this.prisma.$transaction(
       async (tx) => {
         const labelIdMap = new Map<string, string>();
@@ -173,6 +177,10 @@ export class ListsService {
           const validAssigneeIds = card.assignees
             .filter((a) => targetMemberIds.has(a.id))
             .map((a) => a.id);
+          for (const assignee of card.assignees) {
+            if (!targetMemberIds.has(assignee.id))
+              removedAssignees.push({ cardId: card.id, userId: assignee.id });
+          }
           await tx.card.update({
             where: { id: card.id },
             data: {
@@ -201,6 +209,16 @@ export class ListsService {
       list,
       actorId,
     } satisfies ListCreatedEvent);
+
+    for (const removed of removedAssignees) {
+      this.eventEmitter.emit(APP_EVENT.CARD_ASSIGNEE_CHANGED, {
+        boardId: sourceBoardId,
+        cardId: removed.cardId,
+        userId: removed.userId,
+        action: 'unassigned',
+        actorId,
+      } satisfies CardAssigneeChangedEvent);
+    }
 
     return list;
   }
@@ -383,6 +401,7 @@ export class ListsService {
       select: { order: true },
     });
     let nextOrder = (lastInTarget?.order ?? 0) + ORDER_STEP;
+    const movedCards: { cardId: string; order: number }[] = [];
 
     await this.prisma.$transaction(
       async (tx) => {
@@ -391,6 +410,7 @@ export class ListsService {
             where: { id: card.id },
             data: { listId: dto.targetListId, order: nextOrder },
           });
+          movedCards.push({ cardId: card.id, order: nextOrder });
           nextOrder += ORDER_STEP;
         }
       },
@@ -412,6 +432,16 @@ export class ListsService {
       list: targetList,
       actorId,
     } satisfies ListUpdatedEvent);
+
+    for (const moved of movedCards) {
+      this.eventEmitter.emit(APP_EVENT.CARD_MOVED, {
+        boardId,
+        cardId: moved.cardId,
+        listId: dto.targetListId,
+        order: moved.order,
+        actorId,
+      } satisfies CardMovedEvent);
+    }
 
     return { movedCount: cards.length };
   }
