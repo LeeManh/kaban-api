@@ -8,7 +8,7 @@ RUN npm ci
 
 COPY . .
 RUN npx prisma generate
-RUN NODE_OPTIONS="--max-old-space-size=450" npm run build
+RUN NODE_OPTIONS="--max-old-space-size=768" npm run build
 RUN npm prune --production
 
 # --- Stage 2: Runner ---
