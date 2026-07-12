@@ -1,8 +1,5 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 
-// - beforeId: list sẽ đứng NGAY TRƯỚC list đang di chuyển
-// - afterId:  list sẽ đứng NGAY SAU list đang di chuyển
-// Bỏ trống beforeId → chèn lên đầu; bỏ trống afterId → chèn xuống cuối.
 export class MoveListDto {
   @IsOptional()
   @IsString()
@@ -11,4 +8,13 @@ export class MoveListDto {
   @IsOptional()
   @IsString()
   afterId?: string;
+
+  @IsOptional()
+  @IsString()
+  targetBoardId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  position?: number;
 }

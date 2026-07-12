@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Role } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { APP_EVENT } from '../events/events.constants';
 import type {
@@ -83,29 +85,22 @@ export class ListsService {
   ) {
     await this.ensureListInBoard(boardId, listId);
 
-    const { beforeId, afterId } = dto;
-    if (!beforeId && !afterId)
-      throw new BadRequestException('Cần cung cấp beforeId hoặc afterId');
-
-    const before = beforeId
-      ? await this.getNeighborOrder(boardId, beforeId, listId)
-      : null;
-    const after = afterId
-      ? await this.getNeighborOrder(boardId, afterId, listId)
-      : null;
-
-    let order: number;
-    if (before !== null && after !== null) {
-      if (before >= after)
-        throw new BadRequestException(
-          'Vị trí beforeId/afterId không hợp lệ (before phải nhỏ hơn after)',
-        );
-      order = (before + after) / 2; // chèn vào giữa → trung bình cộng
-    } else if (after !== null) {
-      order = after - ORDER_STEP; // chèn lên đầu
-    } else {
-      order = (before as number) + ORDER_STEP; // chèn xuống cuối
+    const targetBoardId = dto.targetBoardId ?? boardId;
+    if (targetBoardId !== boardId) {
+      await this.ensureBoardMembership(targetBoardId, actorId);
+      return this.moveToOtherBoard(
+        boardId,
+        targetBoardId,
+        listId,
+        dto,
+        actorId,
+      );
     }
+
+    const order =
+      dto.position !== undefined
+        ? await this.computeOrderByPosition(boardId, listId, dto.position)
+        : await this.computeOrderByNeighbors(boardId, listId, dto);
 
     const list = await this.prisma.list.update({
       where: { id: listId },
@@ -120,6 +115,160 @@ export class ListsService {
     } satisfies ListMovedEvent);
 
     return list;
+  }
+
+  private async moveToOtherBoard(
+    sourceBoardId: string,
+    targetBoardId: string,
+    listId: string,
+    dto: MoveListDto,
+    actorId: string,
+  ) {
+    const cards = await this.prisma.card.findMany({
+      where: { listId },
+      include: { labels: true, assignees: { select: { id: true } } },
+    });
+
+    const uniqueLabels = new Map<string, { name: string; color: string }>();
+    for (const card of cards) {
+      for (const label of card.labels) {
+        uniqueLabels.set(label.id, { name: label.name, color: label.color });
+      }
+    }
+
+    const targetMembers = await this.prisma.boardMember.findMany({
+      where: { boardId: targetBoardId },
+      select: { userId: true },
+    });
+    const targetMemberIds = new Set(targetMembers.map((m) => m.userId));
+
+    const order = await this.computeOrderByPosition(
+      targetBoardId,
+      null,
+      dto.position ?? Infinity,
+    );
+
+    const list = await this.prisma.$transaction(
+      async (tx) => {
+        const labelIdMap = new Map<string, string>();
+        for (const [oldId, { name, color }] of uniqueLabels) {
+          const existing = await tx.label.findFirst({
+            where: { boardId: targetBoardId, name, color },
+            select: { id: true },
+          });
+          const target =
+            existing ??
+            (await tx.label.create({
+              data: { boardId: targetBoardId, name, color },
+              select: { id: true },
+            }));
+          labelIdMap.set(oldId, target.id);
+        }
+
+        for (const card of cards) {
+          const newLabelIds = card.labels.map(
+            (l) => labelIdMap.get(l.id) as string,
+          );
+          const validAssigneeIds = card.assignees
+            .filter((a) => targetMemberIds.has(a.id))
+            .map((a) => a.id);
+          await tx.card.update({
+            where: { id: card.id },
+            data: {
+              labels: { set: newLabelIds.map((id) => ({ id })) },
+              assignees: { set: validAssigneeIds.map((id) => ({ id })) },
+            },
+          });
+        }
+
+        return tx.list.update({
+          where: { id: listId },
+          data: { boardId: targetBoardId, order },
+        });
+      },
+      { timeout: 30_000 },
+    );
+
+    this.eventEmitter.emit(APP_EVENT.LIST_DELETED, {
+      boardId: sourceBoardId,
+      listId,
+      actorId,
+    } satisfies ListDeletedEvent);
+
+    this.eventEmitter.emit(APP_EVENT.LIST_CREATED, {
+      boardId: targetBoardId,
+      list,
+      actorId,
+    } satisfies ListCreatedEvent);
+
+    return list;
+  }
+
+  private async computeOrderByNeighbors(
+    boardId: string,
+    listId: string,
+    dto: MoveListDto,
+  ): Promise<number> {
+    const { beforeId, afterId } = dto;
+    if (!beforeId && !afterId)
+      throw new BadRequestException(
+        'Cần cung cấp beforeId, afterId, hoặc position',
+      );
+
+    const before = beforeId
+      ? await this.getNeighborOrder(boardId, beforeId, listId)
+      : null;
+    const after = afterId
+      ? await this.getNeighborOrder(boardId, afterId, listId)
+      : null;
+
+    if (before !== null && after !== null) {
+      if (before >= after)
+        throw new BadRequestException(
+          'Vị trí beforeId/afterId không hợp lệ (before phải nhỏ hơn after)',
+        );
+      return (before + after) / 2;
+    }
+    if (after !== null) return after - ORDER_STEP;
+    return (before as number) + ORDER_STEP;
+  }
+
+  private async computeOrderByPosition(
+    boardId: string,
+    excludeListId: string | null,
+    position: number,
+  ): Promise<number> {
+    const others = await this.prisma.list.findMany({
+      where: {
+        boardId,
+        ...(excludeListId && { id: { not: excludeListId } }),
+      },
+      orderBy: { order: 'asc' },
+      select: { order: true },
+    });
+
+    if (others.length === 0) return ORDER_STEP;
+
+    const index = Math.min(Math.max(position - 1, 0), others.length);
+    if (index === 0) return others[0].order - ORDER_STEP;
+    if (index === others.length)
+      return others[others.length - 1].order + ORDER_STEP;
+    return (others[index - 1].order + others[index].order) / 2;
+  }
+
+  private async ensureBoardMembership(boardId: string, userId: string) {
+    const board = await this.prisma.board.findUnique({
+      where: { id: boardId },
+      select: { id: true },
+    });
+    if (!board) throw new NotFoundException('Không tìm thấy board đích');
+
+    const membership = await this.prisma.boardMember.findUnique({
+      where: { boardId_userId: { boardId, userId } },
+      select: { role: true },
+    });
+    if (!membership || membership.role === Role.VIEWER)
+      throw new ForbiddenException('Bạn không đủ quyền ở board đích');
   }
 
   async copyList(
