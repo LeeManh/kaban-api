@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import './instrument';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
