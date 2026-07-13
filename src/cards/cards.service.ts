@@ -274,7 +274,7 @@ export class CardsService {
     dueDate: Date | null,
     reminderOffsetMinutes: number | null,
   ) {
-    const jobId = `due-reminder:${cardId}`;
+    const jobId = `due-reminder-${cardId}`;
 
     const existing = await this.dueReminderQueue.getJob(jobId);
     if (existing) await existing.remove();
