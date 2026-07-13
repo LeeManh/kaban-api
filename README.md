@@ -17,6 +17,8 @@
 - [About](#about)
 - [Tech Stack](#tech-stack)
 - [Features](#features)
+- [Architecture](#architecture)
+- [Data Model](#data-model)
 - [Getting Started](#getting-started)
 - [Scripts](#scripts)
 - [Project Structure](#project-structure)
@@ -24,9 +26,22 @@
 
 </details>
 
-## About
+## :bulb: About
 
-Backend for **Kanvas** — a real-time Kanban board for teams: boards, lists, cards, and live collaboration. Exposes a REST API and a Socket.IO gateway consumed by the [kaban-fe](https://github.com/LeeManh/kaban-fe) frontend.
+Kaban API is the backend for **Kanvas**, a real-time Kanban board for teams — boards, lists, cards, and live collaboration. It exposes a REST API and a Socket.IO gateway consumed by the [kaban-fe](https://github.com/LeeManh/kaban-fe) frontend.
+
+Domain services (Boards, Cards, Lists) stay **decoupled** from cross-cutting concerns like real-time sync and notifications: they only emit events through **`EventEmitter2`**, unaware of who's listening. The **Socket.IO gateway** and the **notification listener** react independently, each responsible for exactly one thing.
+
+> A class should have only one reason to change.  
+> — Robert C. Martin, *Agile Software Development: Principles, Patterns, and Practices*
+
+Anything that shouldn't block the request/response cycle — sending email, deleting an object from storage, firing a due-date reminder — is pushed onto a **BullMQ** queue and processed asynchronously by a dedicated worker.
+
+Uploaded media (avatars, board backgrounds, card covers, embedded images) never has its signed URL persisted — only the raw **object key** is stored, and a fresh **presigned URL** is generated on every read, since signed URLs expire. The same pattern is applied uniformly across every upload surface in the app.
+
+### :star: Give a Star!
+
+If this project is useful to you, consider giving it a star. Thanks!
 
 ## Tech Stack
 
@@ -51,6 +66,10 @@ Backend for **Kanvas** — a real-time Kanban board for teams: boards, lists, ca
 - **Cards**: CRUD, priority, due date + configurable reminder offset (minutes before due), cover image, markdown description with embedded images, checklists, labels, assignees, attachments, comments.
 - **Notifications**: in-app + email, per-type toggles (comments, due dates, removed from card, attachments, card moved), always-on for invites/assignments.
 - **Real-time**: every board/list/card/comment/checklist/label/notification change broadcasts via Socket.IO to the right room; sockets are auto-kicked on board removal or logout.
+
+## Architecture
+
+![Request & Event Flow](.github/assets/architecture-request-event-flow.webp)
 
 ## Getting Started
 
@@ -131,3 +150,5 @@ deploy/             Nginx config for VPS production
 ## Deployment
 
 Production runs on a VPS via Docker: GitHub Actions builds the image, pushes it to GHCR, and the VPS only `pull`s + `docker compose up -d` (no build on the VPS).
+
+![Deployment](.github/assets/architecture-deployment.webp)
