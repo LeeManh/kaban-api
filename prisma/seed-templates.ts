@@ -20,7 +20,8 @@ interface TemplateSeed {
   lists: (string | TemplateListSeed)[];
 }
 
-const TEMPLATE_BACKGROUND = '#0f172a';
+const TEMPLATE_BACKGROUND =
+  'https://images.unsplash.com/photo-1782332576250-4241b7763180?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D';
 
 const TEMPLATES: TemplateSeed[] = [
   // BUSINESS
@@ -345,6 +346,44 @@ const TEMPLATES: TemplateSeed[] = [
     name: 'SEO Task Board',
     description: 'Track SEO tasks from research to monitoring.',
     lists: ['Research', 'In Progress', 'Published', 'Monitoring'],
+  },
+
+  // PRODUCT_MANAGEMENT
+  {
+    category: TemplateCategory.PRODUCT_MANAGEMENT,
+    name: 'Product Roadmap',
+    description: 'Plan product priorities across time horizons.',
+    lists: ['Now', 'Next', 'Later', 'Shipped'],
+  },
+  {
+    category: TemplateCategory.PRODUCT_MANAGEMENT,
+    name: 'Feature Request Tracker',
+    description: 'Collect and prioritize feature requests from users.',
+    lists: ['Submitted', 'Reviewing', 'Planned', 'In Development'],
+  },
+  {
+    category: TemplateCategory.PRODUCT_MANAGEMENT,
+    name: 'Sprint Planning',
+    description: 'Plan and track work for the current sprint.',
+    lists: ['Backlog', 'This Sprint', 'In Progress', 'Done'],
+  },
+  {
+    category: TemplateCategory.PRODUCT_MANAGEMENT,
+    name: 'Product Launch Checklist',
+    description: 'Coordinate tasks before, during, and after a launch.',
+    lists: ['Pre-Launch', 'Launch Day', 'Post-Launch'],
+  },
+  {
+    category: TemplateCategory.PRODUCT_MANAGEMENT,
+    name: 'User Feedback Board',
+    description: 'Capture and act on feedback from users.',
+    lists: ['New Feedback', 'Categorized', 'Actioned'],
+  },
+  {
+    category: TemplateCategory.PRODUCT_MANAGEMENT,
+    name: 'Competitive Analysis',
+    description: 'Track and document research on competitors.',
+    lists: ['Competitors', 'Researching', 'Documented'],
   },
 
   // REMOTE_WORK

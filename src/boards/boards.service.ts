@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Role } from 'generated/prisma/enums';
+import { Role, TemplateCategory } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { resolveStorageValue, StorageKeys } from '../storage/storage-keys.util';
@@ -79,15 +79,49 @@ export class BoardsService {
   }
 
   async findTemplates(dto: FindTemplatesDto) {
-    const page = dto.page ?? 1;
     const pageSize = dto.pageSize ?? 3;
 
+    if (!dto.category && !dto.name) {
+      const nameFilter = dto.name
+        ? { name: { contains: dto.name, mode: 'insensitive' as const } }
+        : {};
+
+      const grouped = await Promise.all(
+        Object.values(TemplateCategory).map((category) =>
+          this.prisma.board.findMany({
+            where: {
+              isTemplate: true,
+              templateCategory: category,
+              ...nameFilter,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: pageSize,
+          }),
+        ),
+      );
+      const items = grouped.flat();
+
+      return {
+        items: await Promise.all(
+          items.map(async (board) => ({
+            ...board,
+            background: await this.resolveBackground(board.background),
+          })),
+        ),
+        total: items.length,
+        page: 1,
+        pageSize,
+        totalPages: 1,
+      };
+    }
+
+    const page = dto.page ?? 1;
     const where = {
       isTemplate: true,
+      templateCategory: dto.category,
       ...(dto.name && {
         name: { contains: dto.name, mode: 'insensitive' as const },
       }),
-      ...(dto.category && { templateCategory: dto.category }),
     };
 
     const [items, total] = await Promise.all([
