@@ -6,10 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { randomUUID } from 'crypto';
 import { Role } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { resolveStorageValue, StorageKeys } from '../storage/storage-keys.util';
 import {
   ASSIGNEE_SELECT,
   CHECKLIST_ITEMS_SELECT,
@@ -24,12 +24,14 @@ import { APP_EVENT } from '../events/events.constants';
 import type { BoardMemberRemovedEvent } from '../events/events.types';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
+import { CreateBoardFromTemplateDto } from './dto/create-board-from-template.dto';
+import { FindTemplatesDto } from './dto/find-templates.dto';
 import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 
-const BACKGROUND_KEY_PREFIX = 'boards/';
+const ORDER_STEP = 1000;
 
 @Injectable()
 export class BoardsService {
@@ -73,6 +75,173 @@ export class BoardsService {
         background: await this.resolveBackground(board.background),
         isStarred: stars.length > 0,
       })),
+    );
+  }
+
+  async findTemplates(dto: FindTemplatesDto) {
+    const page = dto.page ?? 1;
+    const pageSize = dto.pageSize ?? 3;
+
+    const where = {
+      isTemplate: true,
+      ...(dto.name && {
+        name: { contains: dto.name, mode: 'insensitive' as const },
+      }),
+      ...(dto.category && { templateCategory: dto.category }),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.board.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.board.count({ where }),
+    ]);
+
+    return {
+      items: await Promise.all(
+        items.map(async (board) => ({
+          ...board,
+          background: await this.resolveBackground(board.background),
+        })),
+      ),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  async createFromTemplate(
+    templateId: string,
+    userId: string,
+    dto: CreateBoardFromTemplateDto,
+  ) {
+    const template = await this.prisma.board.findUnique({
+      where: { id: templateId },
+      select: {
+        name: true,
+        background: true,
+        isTemplate: true,
+        labels: { select: { id: true, name: true, color: true } },
+        lists: {
+          orderBy: { order: 'asc' },
+          select: {
+            title: true,
+            cards: {
+              orderBy: { order: 'asc' },
+              select: {
+                title: true,
+                description: true,
+                priority: true,
+                cover: true,
+                labels: { select: { id: true } },
+                checklists: {
+                  orderBy: { order: 'asc' },
+                  select: {
+                    title: true,
+                    order: true,
+                    items: {
+                      orderBy: { order: 'asc' },
+                      select: { content: true, order: true },
+                    },
+                  },
+                },
+                attachments: {
+                  select: {
+                    filename: true,
+                    key: true,
+                    mimeType: true,
+                    size: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!template || !template.isTemplate)
+      throw new NotFoundException('Không tìm thấy template');
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const board = await tx.board.create({
+          data: {
+            name: dto.name ?? template.name,
+            background: dto.background ?? template.background,
+            ownerId: userId,
+          },
+        });
+
+        await tx.boardMember.create({
+          data: { boardId: board.id, userId, role: Role.OWNER },
+        });
+
+        const labelIdMap = new Map<string, string>();
+        for (const label of template.labels) {
+          const newLabel = await tx.label.create({
+            data: { name: label.name, color: label.color, boardId: board.id },
+          });
+          labelIdMap.set(label.id, newLabel.id);
+        }
+
+        for (const [listIndex, list] of template.lists.entries()) {
+          const newList = await tx.list.create({
+            data: {
+              title: list.title,
+              order: (listIndex + 1) * ORDER_STEP,
+              boardId: board.id,
+            },
+          });
+
+          for (const [cardIndex, card] of list.cards.entries()) {
+            await tx.card.create({
+              data: {
+                title: card.title,
+                description: card.description,
+                priority: card.priority,
+                cover: card.cover,
+                order: (cardIndex + 1) * ORDER_STEP,
+                listId: newList.id,
+                labels: {
+                  connect: card.labels
+                    .map((l) => labelIdMap.get(l.id))
+                    .filter((id): id is string => Boolean(id))
+                    .map((id) => ({ id })),
+                },
+                checklists: {
+                  create: card.checklists.map((cl) => ({
+                    title: cl.title,
+                    order: cl.order,
+                    items: {
+                      create: cl.items.map((item) => ({
+                        content: item.content,
+                        order: item.order,
+                        isDone: false,
+                      })),
+                    },
+                  })),
+                },
+                attachments: {
+                  create: card.attachments.map((att) => ({
+                    filename: att.filename,
+                    key: att.key,
+                    mimeType: att.mimeType,
+                    size: att.size,
+                    uploadedById: userId,
+                  })),
+                },
+              },
+            });
+          }
+        }
+
+        return board;
+      },
+      { timeout: 30_000 },
     );
   }
 
@@ -140,18 +309,14 @@ export class BoardsService {
   async presignBackground(boardId: string, dto: PresignBoardBackgroundDto) {
     await this.ensureExists(boardId);
 
-    const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
-    const key = `${BACKGROUND_KEY_PREFIX}${boardId}/${randomUUID()}-${safeName}`;
+    const key = StorageKeys.boardBackground(dto.filename);
     const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
 
     return { key, uploadUrl };
   }
 
-  private resolveBackground(background: string) {
-    if (background.startsWith(BACKGROUND_KEY_PREFIX)) {
-      return this.storage.getDownloadUrl(background);
-    }
-    return background;
+  private resolveBackground(background: string): Promise<string> {
+    return resolveStorageValue(background, this.storage) as Promise<string>;
   }
 
   async starBoard(boardId: string, userId: string) {

@@ -1,24 +1,20 @@
 import { StorageService } from '../storage/storage.service';
 import { resolveMarkdownImages } from '../storage/markdown-images.util';
+import { resolveStorageValue } from '../storage/storage-keys.util';
 import { PUBLIC_USER_SELECT, withResolvedAvatar } from '../users/user.selects';
-
-export const CARD_STORAGE_KEY_PREFIX = 'cards/';
 
 export function resolveCardCover(
   cover: string | null,
   storage: StorageService,
 ) {
-  if (!cover) return Promise.resolve(null);
-  if (cover.startsWith(CARD_STORAGE_KEY_PREFIX))
-    return storage.getDownloadUrl(cover);
-  return Promise.resolve(cover);
+  return resolveStorageValue(cover, storage);
 }
 
 export function resolveDescriptionImages(
   description: string | null,
   storage: StorageService,
 ) {
-  return resolveMarkdownImages(description, storage, CARD_STORAGE_KEY_PREFIX);
+  return resolveMarkdownImages(description, storage);
 }
 
 export const LABEL_SELECT = { select: { id: true, name: true, color: true } };

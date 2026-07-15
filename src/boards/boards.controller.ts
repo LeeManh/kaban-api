@@ -17,6 +17,8 @@ import { BoardRolesGuard } from '../common/guard/board-roles.guard';
 import { BoardsService } from './boards.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
+import { CreateBoardFromTemplateDto } from './dto/create-board-from-template.dto';
+import { FindTemplatesDto } from './dto/find-templates.dto';
 import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
@@ -43,6 +45,22 @@ export class BoardsController {
   @ResponseMessage('Lấy danh sách board đã xem gần đây thành công')
   findRecentlyViewed(@GetUser('sub') userId: string) {
     return this.boardsService.findRecentlyViewed(userId);
+  }
+
+  @Get('templates')
+  @ResponseMessage('Lấy danh sách template thành công')
+  findTemplates(@Query() dto: FindTemplatesDto) {
+    return this.boardsService.findTemplates(dto);
+  }
+
+  @Post('templates/:templateId/use')
+  @ResponseMessage('Tạo board từ template thành công')
+  createFromTemplate(
+    @Param('templateId') templateId: string,
+    @GetUser('sub') userId: string,
+    @Body() dto: CreateBoardFromTemplateDto,
+  ) {
+    return this.boardsService.createFromTemplate(templateId, userId, dto);
   }
 
   @Get(':boardId')

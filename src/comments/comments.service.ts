@@ -4,12 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { randomUUID } from 'crypto';
 import { Role } from 'generated/prisma/enums';
-import { CARD_STORAGE_KEY_PREFIX } from '../cards/card.selects';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { resolveMarkdownImages } from '../storage/markdown-images.util';
+import { StorageKeys } from '../storage/storage-keys.util';
 import { PUBLIC_USER_SELECT, withResolvedAvatar } from '../users/user.selects';
 import { APP_EVENT } from '../events/events.constants';
 import type { CommentAddedEvent } from '../events/events.types';
@@ -34,8 +33,7 @@ export class CommentsService {
   ) {
     await this.ensureCardInBoard(boardId, cardId);
 
-    const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
-    const key = `${CARD_STORAGE_KEY_PREFIX}${cardId}/comments/${randomUUID()}-${safeName}`;
+    const key = StorageKeys.commentImage(dto.filename);
     const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
     const viewUrl = await this.storage.getDownloadUrl(key, 7 * 24 * 3600);
 
@@ -108,11 +106,7 @@ export class CommentsService {
   }
 
   private resolveContentImages(content: string) {
-    return resolveMarkdownImages(
-      content,
-      this.storage,
-      CARD_STORAGE_KEY_PREFIX,
-    );
+    return resolveMarkdownImages(content, this.storage);
   }
 
   async remove(boardId: string, commentId: string, callerId: string) {

@@ -2,14 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
-import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { StorageKeys } from '../storage/storage-keys.util';
 import { APP_EVENT } from '../events/events.constants';
 import type { AttachmentAddedEvent } from '../events/events.types';
 import { PresignAttachmentDto } from './dto/presign-attachment.dto';
 import { UpdateAttachmentDto } from './dto/update-attachment.dto';
-import { ATTACHMENT_JOB, ATTACHMENTS_QUEUE } from './attachment.constants';
+import { ATTACHMENTS_QUEUE } from './attachment.constants';
 
 @Injectable()
 export class AttachmentsService {
@@ -28,8 +28,7 @@ export class AttachmentsService {
   ) {
     await this.ensureCardInBoard(boardId, cardId);
 
-    const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
-    const key = `cards/${cardId}/attachments/${randomUUID()}-${safeName}`;
+    const key = StorageKeys.attachment(dto.filename);
 
     const attachment = await this.prisma.attachment.create({
       data: {

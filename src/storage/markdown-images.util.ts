@@ -1,17 +1,17 @@
 import { StorageService } from './storage.service';
+import { isStorageKey } from './storage-keys.util';
 
 const MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
 
 export async function resolveMarkdownImages(
   text: string | null,
   storage: StorageService,
-  keyPrefix: string,
 ): Promise<string | null> {
   if (!text) return text;
 
   const keys = [...text.matchAll(MARKDOWN_IMAGE_REGEX)]
     .map((match) => match[2])
-    .filter((src) => src.startsWith(keyPrefix));
+    .filter((src) => isStorageKey(src));
   if (keys.length === 0) return text;
 
   const urlByKey = new Map(

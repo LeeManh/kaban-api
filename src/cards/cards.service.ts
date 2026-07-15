@@ -8,11 +8,11 @@ import {
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
-import { randomUUID } from 'crypto';
 import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { resolveMarkdownImages } from '../storage/markdown-images.util';
+import { StorageKeys } from '../storage/storage-keys.util';
 import { MAIL_JOB, MAIL_QUEUE } from '../mail/mail.constants';
 import {
   DUE_REMINDER_JOB,
@@ -31,7 +31,6 @@ import { MoveCardDto } from './dto/move-card.dto';
 import { PresignDescriptionImageDto } from './dto/presign-description-image.dto';
 import {
   ASSIGNEE_SELECT,
-  CARD_STORAGE_KEY_PREFIX,
   CHECKLIST_ITEMS_SELECT,
   COUNT_SELECT,
   LABEL_SELECT,
@@ -176,11 +175,7 @@ export class CardsService {
     const comments = await Promise.all(
       card.comments.map(async (comment) => ({
         ...comment,
-        content: await resolveMarkdownImages(
-          comment.content,
-          this.storage,
-          CARD_STORAGE_KEY_PREFIX,
-        ),
+        content: await resolveMarkdownImages(comment.content, this.storage),
         author: await withResolvedAvatar(comment.author, this.storage),
       })),
     );
@@ -461,8 +456,7 @@ export class CardsService {
   ) {
     await this.getCardInBoard(boardId, cardId);
 
-    const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
-    const key = `cards/${cardId}/description/${randomUUID()}-${safeName}`;
+    const key = StorageKeys.descriptionImage(dto.filename);
     const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
     const viewUrl = await this.storage.getDownloadUrl(key, 7 * 24 * 3600);
 

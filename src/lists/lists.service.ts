@@ -306,6 +306,15 @@ export class ListsService {
           orderBy: { order: 'asc' },
           include: {
             labels: { select: { id: true } },
+            assignees: { select: { id: true } },
+            attachments: {
+              select: {
+                filename: true,
+                key: true,
+                mimeType: true,
+                size: true,
+              },
+            },
             checklists: {
               orderBy: { order: 'asc' },
               include: { items: { orderBy: { order: 'asc' } } },
@@ -346,6 +355,9 @@ export class ListsService {
               order: (index + 1) * ORDER_STEP,
               listId: newList.id,
               labels: { connect: card.labels.map((l) => ({ id: l.id })) },
+              assignees: {
+                connect: card.assignees.map((a) => ({ id: a.id })),
+              },
               checklists: {
                 create: card.checklists.map((cl) => ({
                   title: cl.title,
@@ -357,6 +369,15 @@ export class ListsService {
                       isDone: false,
                     })),
                   },
+                })),
+              },
+              attachments: {
+                create: card.attachments.map((att) => ({
+                  filename: att.filename,
+                  key: att.key,
+                  mimeType: att.mimeType,
+                  size: att.size,
+                  uploadedById: actorId,
                 })),
               },
             },

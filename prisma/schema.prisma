@@ -53,6 +53,15 @@ enum JoinRequestStatus {
   REJECTED
 }
 
+enum TemplateCategory {
+  BUSINESS
+  DESIGN
+  EDUCATION
+  ENGINEERING
+  MARKETING
+  REMOTE_WORK
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -94,20 +103,24 @@ model RefreshToken {
 }
 
 model Board {
-  id         String           @id @default(cuid())
-  name       String
-  background String
-  ownerId    String           @map("owner_id")
-  owner      User             @relation("BoardOwner", fields: [ownerId], references: [id])
-  members    BoardMember[]
-  lists      List[]
-  labels     Label[]
-  views      BoardView[]
-  stars      BoardStar[]
-  invites    BoardInvite[]
-  inviteLink BoardInviteLink?
-  createdAt  DateTime         @default(now()) @map("created_at")
+  id                  String            @id @default(cuid())
+  name                String
+  background          String
+  ownerId             String            @map("owner_id")
+  owner               User              @relation("BoardOwner", fields: [ownerId], references: [id])
+  members             BoardMember[]
+  lists               List[]
+  labels              Label[]
+  views               BoardView[]
+  stars               BoardStar[]
+  invites             BoardInvite[]
+  inviteLink          BoardInviteLink?
+  createdAt           DateTime          @default(now()) @map("created_at")
+  isTemplate          Boolean           @default(false) @map("is_template")
+  templateCategory    TemplateCategory? @map("template_category")
+  templateDescription String?           @db.Text @map("template_description")
 
+  @@index([isTemplate, templateCategory])
   @@map("boards")
 }
 
@@ -217,7 +230,7 @@ model Label {
 model Attachment {
   id           String   @id @default(cuid())
   filename     String
-  key          String   @unique
+  key          String
   mimeType     String?  @map("mime_type")
   size         Int?
   cardId       String   @map("card_id")
@@ -226,6 +239,7 @@ model Attachment {
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   createdAt    DateTime @default(now()) @map("created_at")
 
+  @@unique([key, cardId])
   @@index([cardId])
   @@map("attachments")
 }

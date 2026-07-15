@@ -5,10 +5,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { USER_AVATAR_KEY_PREFIX, withResolvedAvatar } from './user.selects';
+import { StorageKeys } from '../storage/storage-keys.util';
+import { withResolvedAvatar } from './user.selects';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { PresignAvatarDto } from './dto/presign-avatar.dto';
@@ -54,8 +54,7 @@ export class UsersService {
   }
 
   async presignAvatar(userId: string, dto: PresignAvatarDto) {
-    const safeName = dto.filename.replace(/[^\w.-]+/g, '_');
-    const key = `${USER_AVATAR_KEY_PREFIX}${userId}/${randomUUID()}-${safeName}`;
+    const key = StorageKeys.userAvatar(userId, dto.filename);
     const uploadUrl = await this.storage.getUploadUrl(key, dto.contentType);
 
     return { key, uploadUrl };

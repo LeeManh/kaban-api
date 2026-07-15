@@ -1,6 +1,5 @@
 import { StorageService } from '../storage/storage.service';
-
-export const USER_AVATAR_KEY_PREFIX = 'users/';
+import { resolveStorageValue } from '../storage/storage-keys.util';
 
 export const PUBLIC_USER_SELECT = {
   id: true,
@@ -13,10 +12,7 @@ export function resolveUserAvatar(
   avatar: string | null,
   storage: StorageService,
 ) {
-  if (!avatar) return Promise.resolve(null);
-  if (avatar.startsWith(USER_AVATAR_KEY_PREFIX))
-    return storage.getDownloadUrl(avatar);
-  return Promise.resolve(avatar);
+  return resolveStorageValue(avatar, storage);
 }
 
 export async function withResolvedAvatar<T extends { avatar: string | null }>(
