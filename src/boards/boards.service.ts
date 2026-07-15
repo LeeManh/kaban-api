@@ -148,6 +148,28 @@ export class BoardsService {
     };
   }
 
+  async findTemplateById(templateId: string) {
+    const template = await this.prisma.board.findUnique({
+      where: { id: templateId },
+      select: {
+        id: true,
+        name: true,
+        background: true,
+        isTemplate: true,
+        templateCategory: true,
+        templateDescription: true,
+        createdAt: true,
+      },
+    });
+    if (!template || !template.isTemplate)
+      throw new NotFoundException('Không tìm thấy template');
+
+    return {
+      ...template,
+      background: await this.resolveBackground(template.background),
+    };
+  }
+
   async createFromTemplate(
     templateId: string,
     userId: string,

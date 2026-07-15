@@ -53,6 +53,12 @@ export class BoardsController {
     return this.boardsService.findTemplates(dto);
   }
 
+  @Get('templates/:templateId')
+  @ResponseMessage('Lấy chi tiết template thành công')
+  findTemplateById(@Param('templateId') templateId: string) {
+    return this.boardsService.findTemplateById(templateId);
+  }
+
   @Post('templates/:templateId/use')
   @ResponseMessage('Tạo board từ template thành công')
   createFromTemplate(
