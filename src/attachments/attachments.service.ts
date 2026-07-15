@@ -86,15 +86,6 @@ export class AttachmentsService {
 
     await this.prisma.attachment.delete({ where: { id: att.id } });
 
-    await this.attachmentsQueue.add(
-      ATTACHMENT_JOB.DELETE_OBJECT,
-      { key: att.key },
-      {
-        attempts: 5,
-        backoff: { type: 'exponential', delay: 2000 },
-        removeOnComplete: true,
-      },
-    );
     return { id: att.id };
   }
 
