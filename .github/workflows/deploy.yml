@@ -68,3 +68,5 @@ jobs:
 
             sleep 5
             docker compose -f docker-compose.prod.yml exec -T nestjs-app npx prisma migrate deploy
+
+            docker image prune -a -f --filter "until=72h"
