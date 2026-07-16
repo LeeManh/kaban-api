@@ -12,7 +12,7 @@ import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { resolveMarkdownImages } from '../storage/markdown-images.util';
-import { StorageKeys } from '../storage/storage-keys.util';
+import { resolveStorageValue, StorageKeys } from '../storage/storage-keys.util';
 import { MAIL_JOB, MAIL_QUEUE } from '../mail/mail.constants';
 import {
   DUE_REMINDER_JOB,
@@ -168,7 +168,7 @@ export class CardsService {
     const attachments = await Promise.all(
       card.attachments.map(async (attachment) => ({
         ...attachment,
-        downloadUrl: await this.storage.getDownloadUrl(attachment.key),
+        downloadUrl: await resolveStorageValue(attachment.key, this.storage),
       })),
     );
 

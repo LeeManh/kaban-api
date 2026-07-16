@@ -59,6 +59,15 @@ export class BoardsController {
     return this.boardsService.findTemplateById(templateId);
   }
 
+  @Get('templates/:templateId/cards/:cardId')
+  @ResponseMessage('Lấy chi tiết card trong template thành công')
+  findTemplateCardById(
+    @Param('templateId') templateId: string,
+    @Param('cardId') cardId: string,
+  ) {
+    return this.boardsService.findTemplateCardById(templateId, cardId);
+  }
+
   @Post('templates/:templateId/use')
   @ResponseMessage('Tạo board từ template thành công')
   createFromTemplate(

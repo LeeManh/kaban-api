@@ -19,6 +19,7 @@ import {
   resolveCardCover,
   withChecklistProgress,
 } from '../cards/card.selects';
+import { CardsService } from '../cards/cards.service';
 import { PUBLIC_USER_SELECT, withResolvedAvatar } from '../users/user.selects';
 import { APP_EVENT } from '../events/events.constants';
 import type { BoardMemberRemovedEvent } from '../events/events.types';
@@ -39,6 +40,7 @@ export class BoardsService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly cardsService: CardsService,
   ) {}
 
   async create(userId: string, dto: CreateBoardDto) {
@@ -159,15 +161,77 @@ export class BoardsService {
         templateCategory: true,
         templateDescription: true,
         createdAt: true,
+        lists: {
+          orderBy: { order: 'asc' },
+          select: {
+            id: true,
+            title: true,
+            order: true,
+            cards: {
+              orderBy: { order: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                order: true,
+                priority: true,
+                dueDate: true,
+                reminderOffsetMinutes: true,
+                isDone: true,
+                cover: true,
+                version: true,
+                listId: true,
+                createdAt: true,
+                updatedAt: true,
+                labels: LABEL_SELECT,
+                assignees: ASSIGNEE_SELECT,
+                _count: COUNT_SELECT,
+                checklists: CHECKLIST_ITEMS_SELECT,
+              },
+            },
+          },
+        },
       },
     });
     if (!template || !template.isTemplate)
       throw new NotFoundException('Không tìm thấy template');
 
+    const { lists, ...rest } = template;
+
     return {
-      ...template,
-      background: await this.resolveBackground(template.background),
+      ...rest,
+      background: await this.resolveBackground(rest.background),
+      lists: await Promise.all(
+        lists.map(async ({ cards, ...list }) => ({
+          ...list,
+          cards: await Promise.all(
+            cards.map(async (card) => ({
+              ...withChecklistProgress(card),
+              cover: await resolveCardCover(card.cover, this.storage),
+              assignees: await resolveAssigneeAvatars(
+                card.assignees,
+                this.storage,
+              ),
+            })),
+          ),
+        })),
+      ),
     };
+  }
+
+  async findTemplateCardById(templateId: string, cardId: string) {
+    const template = await this.prisma.board.findFirst({
+      where: { id: templateId, isTemplate: true },
+      select: { id: true },
+    });
+    if (!template) throw new NotFoundException('Không tìm thấy template');
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { comments, ...card } = await this.cardsService.findOne(
+      templateId,
+      cardId,
+    );
+    return card;
   }
 
   async createFromTemplate(

@@ -4,7 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { StorageKeys } from '../storage/storage-keys.util';
+import { resolveStorageValue, StorageKeys } from '../storage/storage-keys.util';
 import { APP_EVENT } from '../events/events.constants';
 import type { AttachmentAddedEvent } from '../events/events.types';
 import { PresignAttachmentDto } from './dto/presign-attachment.dto';
@@ -63,7 +63,7 @@ export class AttachmentsService {
     return Promise.all(
       attachments.map(async (att) => ({
         ...att,
-        downloadUrl: await this.storage.getDownloadUrl(att.key),
+        downloadUrl: await resolveStorageValue(att.key, this.storage),
       })),
     );
   }

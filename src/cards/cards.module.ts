@@ -9,5 +9,6 @@ import { StorageModule } from '../storage/storage.module';
   imports: [MailModule, NotificationsModule, StorageModule],
   controllers: [CardsController],
   providers: [CardsService],
+  exports: [CardsService],
 })
 export class CardsModule {}

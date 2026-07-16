@@ -1,11 +1,32 @@
 import { PrismaClient } from '../generated/prisma/client';
 import { CardPriority, TemplateCategory } from '../generated/prisma/enums';
 
+interface TemplateChecklistItemSeed {
+  content: string;
+  isDone?: boolean;
+}
+
+interface TemplateChecklistSeed {
+  title: string;
+  items: (string | TemplateChecklistItemSeed)[];
+}
+
+interface TemplateAttachmentSeed {
+  filename: string;
+  url: string;
+  mimeType?: string;
+}
+
 interface TemplateCardSeed {
   title: string;
   description?: string;
   priority?: CardPriority;
-  checklist?: { title: string; items: string[] };
+  isDone?: boolean;
+  cover?: string;
+  labelNames?: string[];
+  assignOwner?: boolean;
+  checklist?: TemplateChecklistSeed;
+  attachments?: TemplateAttachmentSeed[];
 }
 
 interface TemplateListSeed {
@@ -13,10 +34,16 @@ interface TemplateListSeed {
   cards?: TemplateCardSeed[];
 }
 
+interface TemplateLabelSeed {
+  name: string;
+  color: string;
+}
+
 interface TemplateSeed {
   category: TemplateCategory;
   name: string;
   description: string;
+  labels?: TemplateLabelSeed[];
   lists: (string | TemplateListSeed)[];
 }
 
@@ -40,14 +67,30 @@ const TEMPLATES: TemplateSeed[] = [
     category: TemplateCategory.BUSINESS,
     name: 'Sales Pipeline CRM',
     description: 'Track leads from first contact to closed deal.',
+    labels: [
+      { name: 'Hot Lead', color: '#ef4444' },
+      { name: 'Enterprise', color: '#a855f7' },
+      { name: 'At Risk', color: '#f97316' },
+    ],
     lists: [
       {
         title: 'Leads',
         cards: [
           {
             title: 'Acme Corp - Website Redesign',
-            description: 'Inbound lead from contact form.',
+            description:
+              'Inbound lead from contact form. Wants a full redesign of their marketing site.',
             priority: CardPriority.LOW,
+            cover:
+              'https://images.unsplash.com/photo-1782332576250-4241b7763180?q=80&w=1287&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+            labelNames: ['Hot Lead'],
+            attachments: [
+              {
+                filename: 'homepage-mockup.jpg',
+                url: 'https://images.unsplash.com/photo-1780321100374-f10cd7172e77?q=80&w=2371&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                mimeType: 'image/jpeg',
+              },
+            ],
           },
         ],
       },
@@ -56,18 +99,83 @@ const TEMPLATES: TemplateSeed[] = [
         cards: [
           {
             title: 'Globex Inc - Cloud Migration',
+            description:
+              'Budget confirmed, evaluating a 12-month migration plan.',
             priority: CardPriority.MEDIUM,
+            labelNames: ['Enterprise'],
+            assignOwner: true,
+            checklist: {
+              title: 'Discovery',
+              items: [
+                { content: 'Send questionnaire', isDone: true },
+                { content: 'Schedule technical call', isDone: true },
+                { content: 'Confirm budget range', isDone: false },
+              ],
+            },
           },
         ],
       },
-      'Proposal Sent',
-      'Negotiation',
+      {
+        title: 'Proposal Sent',
+        cards: [
+          {
+            title: 'Umbrella Corp - Security Audit',
+            description:
+              'Sent proposal for a full infrastructure security audit.',
+            priority: CardPriority.HIGH,
+            labelNames: ['Enterprise', 'Hot Lead'],
+            assignOwner: true,
+            checklist: {
+              title: 'Proposal steps',
+              items: [
+                { content: 'Draft sent', isDone: true },
+                { content: 'Follow-up call', isDone: false },
+                { content: 'Get signature', isDone: false },
+              ],
+            },
+            attachments: [
+              {
+                filename: 'security-audit-proposal.jpg',
+                url: 'https://images.unsplash.com/photo-1774711268987-a56e0de1d79d?q=80&w=2728&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                mimeType: 'image/jpeg',
+              },
+            ],
+          },
+        ],
+      },
+      {
+        title: 'Negotiation',
+        cards: [
+          {
+            title: 'Stark Industries - Platform License',
+            description:
+              'Negotiating seat count and annual pricing. Champion went quiet.',
+            priority: CardPriority.HIGH,
+            labelNames: ['Enterprise', 'At Risk'],
+            assignOwner: true,
+          },
+        ],
+      },
       {
         title: 'Won',
         cards: [
           {
             title: 'Initech - Annual Support Contract',
+            description:
+              'Signed! Annual support contract renewed for another year.',
             priority: CardPriority.HIGH,
+            isDone: true,
+            cover:
+              'https://images.unsplash.com/photo-1780321100374-f10cd7172e77?q=80&w=2371&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+            labelNames: ['Enterprise'],
+            assignOwner: true,
+            checklist: {
+              title: 'Closing steps',
+              items: [
+                { content: 'Contract signed', isDone: true },
+                { content: 'Kickoff scheduled', isDone: true },
+              ],
+            },
           },
         ],
       },
@@ -464,60 +572,101 @@ function normalizeList(list: string | TemplateListSeed): TemplateListSeed {
   return typeof list === 'string' ? { title: list } : list;
 }
 
+function normalizeChecklistItem(
+  item: string | TemplateChecklistItemSeed,
+): TemplateChecklistItemSeed {
+  return typeof item === 'string' ? { content: item } : item;
+}
+
 export async function seedTemplates(prisma: PrismaClient, ownerId: string) {
   await prisma.board.deleteMany({ where: { isTemplate: true } });
 
   for (let i = 0; i < TEMPLATES.length; i++) {
     const template = TEMPLATES[i];
-
     const background = TEMPLATE_BACKGROUNDS[i % TEMPLATE_BACKGROUNDS.length];
 
-    await prisma.board.create({
+    const board = await prisma.board.create({
       data: {
         name: template.name,
-        background: background,
+        background,
         ownerId,
         isTemplate: true,
         templateCategory: template.category,
         templateDescription: template.description,
-        lists: {
-          create: template.lists.map((rawList, listIndex) => {
-            const list = normalizeList(rawList);
-            return {
-              title: list.title,
-              order: (listIndex + 1) * 1000,
-              cards: {
-                create: (list.cards ?? []).map((card, cardIndex) => ({
-                  title: card.title,
-                  description: card.description,
-                  priority: card.priority ?? CardPriority.MEDIUM,
-                  order: (cardIndex + 1) * 1000,
-                  checklists: card.checklist
-                    ? {
-                        create: [
-                          {
-                            title: card.checklist.title,
-                            order: 1000,
-                            items: {
-                              create: card.checklist.items.map(
-                                (content, itemIndex) => ({
-                                  content,
-                                  order: (itemIndex + 1) * 1000,
-                                  isDone: false,
-                                }),
-                              ),
-                            },
-                          },
-                        ],
-                      }
-                    : undefined,
-                })),
-              },
-            };
-          }),
-        },
+        labels: template.labels ? { create: template.labels } : undefined,
       },
+      include: { labels: true },
     });
+
+    const labelIdByName = Object.fromEntries(
+      board.labels.map((label) => [label.name, label.id]),
+    );
+
+    for (const [listIndex, rawList] of template.lists.entries()) {
+      const list = normalizeList(rawList);
+      const newList = await prisma.list.create({
+        data: {
+          title: list.title,
+          order: (listIndex + 1) * 1000,
+          boardId: board.id,
+        },
+      });
+
+      for (const [cardIndex, card] of (list.cards ?? []).entries()) {
+        await prisma.card.create({
+          data: {
+            title: card.title,
+            description: card.description,
+            priority: card.priority ?? CardPriority.MEDIUM,
+            order: (cardIndex + 1) * 1000,
+            isDone: card.isDone ?? false,
+            cover: card.cover,
+            listId: newList.id,
+            labels: {
+              connect: (card.labelNames ?? [])
+                .map((name) => labelIdByName[name])
+                .filter((id): id is string => Boolean(id))
+                .map((id) => ({ id })),
+            },
+            assignees: card.assignOwner
+              ? { connect: [{ id: ownerId }] }
+              : undefined,
+            checklists: card.checklist
+              ? {
+                  create: [
+                    {
+                      title: card.checklist.title,
+                      order: 1000,
+                      items: {
+                        create: card.checklist.items.map(
+                          (rawItem, itemIndex) => {
+                            const item = normalizeChecklistItem(rawItem);
+                            return {
+                              content: item.content,
+                              order: (itemIndex + 1) * 1000,
+                              isDone: item.isDone ?? false,
+                            };
+                          },
+                        ),
+                      },
+                    },
+                  ],
+                }
+              : undefined,
+            attachments: card.attachments
+              ? {
+                  create: card.attachments.map((att) => ({
+                    filename: att.filename,
+                    key: att.url,
+                    mimeType: att.mimeType,
+                    uploadedById: ownerId,
+                  })),
+                }
+              : undefined,
+          },
+        });
+      }
+    }
   }
 
   console.log(`Seeded ${TEMPLATES.length} templates`);
