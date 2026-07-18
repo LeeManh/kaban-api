@@ -1,6 +1,5 @@
 import { PrismaClient } from '../generated/prisma/client';
 import { CardPriority, Role } from '../generated/prisma/enums';
-import { StorageKeys } from '../src/storage/storage-keys.util';
 
 type AssigneeRole = 'owner' | 'member1';
 
@@ -11,8 +10,8 @@ interface SeedChecklist {
 
 interface SeedAttachment {
   filename: string;
+  url: string;
   mimeType: string;
-  size: number;
 }
 
 interface SeedCard {
@@ -44,6 +43,26 @@ const SEED_LABELS = [
   { name: 'Docs', color: '#3b82f6' },
 ];
 
+const ATTACHMENT_IMAGES = [
+  'https://images.unsplash.com/photo-1782332576250-4241b7763180?q=80&w=1287&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+  'https://images.unsplash.com/photo-1780321100374-f10cd7172e77?q=80&w=2371&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+  'https://images.unsplash.com/photo-1774711268987-a56e0de1d79d?q=80&w=2728&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+  'https://images.unsplash.com/photo-1777799589789-fa55d10cf81d?q=80&w=1287&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+  'https://images.unsplash.com/photo-1471899236350-e3016bf1e69e?q=80&w=2371&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+];
+
+function attachmentAt(
+  index: number,
+  filename: string,
+  mimeType: string,
+): SeedAttachment {
+  return {
+    filename,
+    url: ATTACHMENT_IMAGES[index % ATTACHMENT_IMAGES.length],
+    mimeType,
+  };
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const SEED_LISTS: SeedList[] = [
@@ -68,11 +87,11 @@ const SEED_LISTS: SeedList[] = [
           },
         ],
         attachments: [
-          {
-            filename: 'competitor-comparison.xlsx',
-            mimeType: 'application/vnd.ms-excel',
-            size: 33_280,
-          },
+          attachmentAt(
+            0,
+            'competitor-comparison.xlsx',
+            'application/vnd.ms-excel',
+          ),
         ],
       },
       {
@@ -95,11 +114,7 @@ const SEED_LISTS: SeedList[] = [
           },
         ],
         attachments: [
-          {
-            filename: 'slack-integration-proposal.pdf',
-            mimeType: 'application/pdf',
-            size: 189_440,
-          },
+          attachmentAt(1, 'slack-integration-proposal.pdf', 'application/pdf'),
         ],
       },
       {
@@ -145,11 +160,7 @@ const SEED_LISTS: SeedList[] = [
           },
         ],
         attachments: [
-          {
-            filename: 'landing-page-wireframe.png',
-            mimeType: 'image/png',
-            size: 245_760,
-          },
+          attachmentAt(2, 'landing-page-wireframe.png', 'image/png'),
         ],
       },
       {
@@ -173,11 +184,7 @@ const SEED_LISTS: SeedList[] = [
           },
         ],
         attachments: [
-          {
-            filename: 'payment-test-plan.docx',
-            mimeType: 'application/msword',
-            size: 27_648,
-          },
+          attachmentAt(3, 'payment-test-plan.docx', 'application/msword'),
         ],
       },
       {
@@ -200,11 +207,7 @@ const SEED_LISTS: SeedList[] = [
           },
         ],
         attachments: [
-          {
-            filename: 'investor-deck-draft.pdf',
-            mimeType: 'application/pdf',
-            size: 512_000,
-          },
+          attachmentAt(4, 'investor-deck-draft.pdf', 'application/pdf'),
         ],
       },
     ],
@@ -232,16 +235,8 @@ const SEED_LISTS: SeedList[] = [
           },
         ],
         attachments: [
-          {
-            filename: 'safari-bug-screenshot.png',
-            mimeType: 'image/png',
-            size: 102_400,
-          },
-          {
-            filename: 'safari-console-log.txt',
-            mimeType: 'text/plain',
-            size: 8_192,
-          },
+          attachmentAt(0, 'safari-bug-screenshot.png', 'image/png'),
+          attachmentAt(1, 'safari-console-log.txt', 'text/plain'),
         ],
       },
       {
@@ -263,11 +258,7 @@ const SEED_LISTS: SeedList[] = [
           },
         ],
         attachments: [
-          {
-            filename: 'query-benchmark-before-after.png',
-            mimeType: 'image/png',
-            size: 76_800,
-          },
+          attachmentAt(2, 'query-benchmark-before-after.png', 'image/png'),
         ],
       },
     ],
@@ -292,13 +283,7 @@ const SEED_LISTS: SeedList[] = [
             ],
           },
         ],
-        attachments: [
-          {
-            filename: 'api-doc-draft.md',
-            mimeType: 'text/plain',
-            size: 14_336,
-          },
-        ],
+        attachments: [attachmentAt(3, 'api-doc-draft.md', 'text/plain')],
       },
       {
         title: 'Review PR: refactor notification service',
@@ -343,11 +328,7 @@ const SEED_LISTS: SeedList[] = [
           },
         ],
         attachments: [
-          {
-            filename: 'ci-cd-pipeline-diagram.png',
-            mimeType: 'image/png',
-            size: 68_608,
-          },
+          attachmentAt(4, 'ci-cd-pipeline-diagram.png', 'image/png'),
         ],
       },
       {
@@ -369,12 +350,8 @@ const SEED_LISTS: SeedList[] = [
           },
         ],
         attachments: [
-          { filename: 'logo-final.png', mimeType: 'image/png', size: 51_200 },
-          {
-            filename: 'brand-guideline.pdf',
-            mimeType: 'application/pdf',
-            size: 307_200,
-          },
+          attachmentAt(0, 'logo-final.png', 'image/png'),
+          attachmentAt(1, 'brand-guideline.pdf', 'application/pdf'),
         ],
       },
       {
@@ -485,9 +462,8 @@ export async function seedDemoBoard(
           attachments: {
             create: (card.attachments ?? []).map((att) => ({
               filename: att.filename,
-              key: StorageKeys.attachment(att.filename),
+              key: att.url,
               mimeType: att.mimeType,
-              size: att.size,
               uploadedById: users.owner.id,
             })),
           },
