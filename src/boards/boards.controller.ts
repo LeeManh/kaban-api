@@ -139,7 +139,7 @@ export class BoardsController {
   }
 
   @Patch(':boardId')
-  @Roles(Role.ADMIN)
+  @Roles(Role.MEMBER)
   @ResponseMessage('Cập nhật board thành công')
   update(@Param('boardId') boardId: string, @Body() dto: UpdateBoardDto) {
     return this.boardsService.update(boardId, dto);
