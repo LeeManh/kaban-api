@@ -18,6 +18,7 @@ import { BoardsService } from './boards.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { CreateBoardFromTemplateDto } from './dto/create-board-from-template.dto';
+import { CreateTemplateFromBoardDto } from './dto/create-template-from-board.dto';
 import { FindTemplatesDto } from './dto/find-templates.dto';
 import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
@@ -127,6 +128,17 @@ export class BoardsController {
   @ResponseMessage('Cập nhật board thành công')
   update(@Param('boardId') boardId: string, @Body() dto: UpdateBoardDto) {
     return this.boardsService.update(boardId, dto);
+  }
+
+  @Post(':boardId/make-template')
+  @Roles(Role.OWNER)
+  @ResponseMessage('Tạo template từ board thành công')
+  makeTemplate(
+    @Param('boardId') boardId: string,
+    @GetUser('sub') userId: string,
+    @Body() dto: CreateTemplateFromBoardDto,
+  ) {
+    return this.boardsService.makeTemplate(boardId, userId, dto);
   }
 
   @Post(':boardId/background/presign')

@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Prisma } from 'generated/prisma/client';
 import { Role, TemplateCategory } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -26,6 +27,7 @@ import type { BoardMemberRemovedEvent } from '../events/events.types';
 import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { CreateBoardFromTemplateDto } from './dto/create-board-from-template.dto';
+import { CreateTemplateFromBoardDto } from './dto/create-template-from-board.dto';
 import { FindTemplatesDto } from './dto/find-templates.dto';
 import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
@@ -33,6 +35,52 @@ import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 
 const ORDER_STEP = 1000;
+
+const BOARD_CONTENT_SELECT = {
+  name: true,
+  background: true,
+  isTemplate: true,
+  labels: { select: { id: true, name: true, color: true } },
+  lists: {
+    orderBy: { order: 'asc' },
+    select: {
+      title: true,
+      cards: {
+        orderBy: { order: 'asc' },
+        select: {
+          title: true,
+          description: true,
+          priority: true,
+          cover: true,
+          labels: { select: { id: true } },
+          checklists: {
+            orderBy: { order: 'asc' },
+            select: {
+              title: true,
+              order: true,
+              items: {
+                orderBy: { order: 'asc' },
+                select: { content: true, order: true },
+              },
+            },
+          },
+          attachments: {
+            select: {
+              filename: true,
+              key: true,
+              mimeType: true,
+              size: true,
+            },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.BoardSelect;
+
+type BoardContent = Prisma.BoardGetPayload<{
+  select: typeof BOARD_CONTENT_SELECT;
+}>;
 
 @Injectable()
 export class BoardsService {
@@ -241,47 +289,7 @@ export class BoardsService {
   ) {
     const template = await this.prisma.board.findUnique({
       where: { id: templateId },
-      select: {
-        name: true,
-        background: true,
-        isTemplate: true,
-        labels: { select: { id: true, name: true, color: true } },
-        lists: {
-          orderBy: { order: 'asc' },
-          select: {
-            title: true,
-            cards: {
-              orderBy: { order: 'asc' },
-              select: {
-                title: true,
-                description: true,
-                priority: true,
-                cover: true,
-                labels: { select: { id: true } },
-                checklists: {
-                  orderBy: { order: 'asc' },
-                  select: {
-                    title: true,
-                    order: true,
-                    items: {
-                      orderBy: { order: 'asc' },
-                      select: { content: true, order: true },
-                    },
-                  },
-                },
-                attachments: {
-                  select: {
-                    filename: true,
-                    key: true,
-                    mimeType: true,
-                    size: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      select: BOARD_CONTENT_SELECT,
     });
     if (!template || !template.isTemplate)
       throw new NotFoundException('Không tìm thấy template');
@@ -300,69 +308,110 @@ export class BoardsService {
           data: { boardId: board.id, userId, role: Role.OWNER },
         });
 
-        const labelIdMap = new Map<string, string>();
-        for (const label of template.labels) {
-          const newLabel = await tx.label.create({
-            data: { name: label.name, color: label.color, boardId: board.id },
-          });
-          labelIdMap.set(label.id, newLabel.id);
-        }
-
-        for (const [listIndex, list] of template.lists.entries()) {
-          const newList = await tx.list.create({
-            data: {
-              title: list.title,
-              order: (listIndex + 1) * ORDER_STEP,
-              boardId: board.id,
-            },
-          });
-
-          for (const [cardIndex, card] of list.cards.entries()) {
-            await tx.card.create({
-              data: {
-                title: card.title,
-                description: card.description,
-                priority: card.priority,
-                cover: card.cover,
-                order: (cardIndex + 1) * ORDER_STEP,
-                listId: newList.id,
-                labels: {
-                  connect: card.labels
-                    .map((l) => labelIdMap.get(l.id))
-                    .filter((id): id is string => Boolean(id))
-                    .map((id) => ({ id })),
-                },
-                checklists: {
-                  create: card.checklists.map((cl) => ({
-                    title: cl.title,
-                    order: cl.order,
-                    items: {
-                      create: cl.items.map((item) => ({
-                        content: item.content,
-                        order: item.order,
-                        isDone: false,
-                      })),
-                    },
-                  })),
-                },
-                attachments: {
-                  create: card.attachments.map((att) => ({
-                    filename: att.filename,
-                    key: att.key,
-                    mimeType: att.mimeType,
-                    size: att.size,
-                    uploadedById: userId,
-                  })),
-                },
-              },
-            });
-          }
-        }
+        await this.cloneBoardContent(tx, template, board.id, userId);
 
         return board;
       },
       { timeout: 30_000 },
     );
+  }
+
+  async makeTemplate(
+    boardId: string,
+    userId: string,
+    dto: CreateTemplateFromBoardDto,
+  ) {
+    const board = await this.prisma.board.findUnique({
+      where: { id: boardId },
+      select: BOARD_CONTENT_SELECT,
+    });
+    if (!board) throw new NotFoundException('Không tìm thấy board');
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const template = await tx.board.create({
+          data: {
+            name: dto.name ?? board.name,
+            background: board.background,
+            ownerId: userId,
+            isTemplate: true,
+            templateCategory: dto.templateCategory,
+            templateDescription: dto.templateDescription,
+          },
+        });
+
+        await this.cloneBoardContent(tx, board, template.id, userId);
+
+        return template;
+      },
+      { timeout: 30_000 },
+    );
+  }
+
+  private async cloneBoardContent(
+    tx: Prisma.TransactionClient,
+    source: BoardContent,
+    destBoardId: string,
+    uploadedById: string,
+  ) {
+    const labelIdMap = new Map<string, string>();
+    for (const label of source.labels) {
+      const newLabel = await tx.label.create({
+        data: { name: label.name, color: label.color, boardId: destBoardId },
+      });
+      labelIdMap.set(label.id, newLabel.id);
+    }
+
+    for (const [listIndex, list] of source.lists.entries()) {
+      const newList = await tx.list.create({
+        data: {
+          title: list.title,
+          order: (listIndex + 1) * ORDER_STEP,
+          boardId: destBoardId,
+        },
+      });
+
+      for (const [cardIndex, card] of list.cards.entries()) {
+        await tx.card.create({
+          data: {
+            title: card.title,
+            description: card.description,
+            priority: card.priority,
+            cover: card.cover,
+            order: (cardIndex + 1) * ORDER_STEP,
+            listId: newList.id,
+            labels: {
+              connect: card.labels
+                .map((l) => labelIdMap.get(l.id))
+                .filter((id): id is string => Boolean(id))
+                .map((id) => ({ id })),
+            },
+            checklists: {
+              create: card.checklists.map((cl) => ({
+                title: cl.title,
+                order: cl.order,
+                items: {
+                  create: cl.items.map((item) => ({
+                    content: item.content,
+                    order: item.order,
+                    isDone: false,
+                  })),
+                },
+              })),
+            },
+            attachments: {
+              create: card.attachments.map((att) => ({
+                filename: att.filename,
+                key: att.key,
+                mimeType: att.mimeType,
+                size: att.size,
+                uploadedById,
+              })),
+            },
+          },
+        });
+      }
+    }
   }
 
   async findOne(boardId: string, userId: string) {
