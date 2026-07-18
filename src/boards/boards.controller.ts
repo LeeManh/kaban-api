@@ -19,9 +19,11 @@ import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { CreateBoardFromTemplateDto } from './dto/create-board-from-template.dto';
 import { CreateTemplateFromBoardDto } from './dto/create-template-from-board.dto';
+import { FindMyTemplatesDto } from './dto/find-my-templates.dto';
 import { FindTemplatesDto } from './dto/find-templates.dto';
 import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import { UpdateTemplateVisibilityDto } from './dto/update-template-visibility.dto';
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
 
@@ -54,10 +56,22 @@ export class BoardsController {
     return this.boardsService.findTemplates(dto);
   }
 
+  @Get('templates/mine')
+  @ResponseMessage('Lấy danh sách template của bạn thành công')
+  findMyTemplates(
+    @GetUser('sub') userId: string,
+    @Query() dto: FindMyTemplatesDto,
+  ) {
+    return this.boardsService.findMyTemplates(userId, dto);
+  }
+
   @Get('templates/:templateId')
   @ResponseMessage('Lấy chi tiết template thành công')
-  findTemplateById(@Param('templateId') templateId: string) {
-    return this.boardsService.findTemplateById(templateId);
+  findTemplateById(
+    @Param('templateId') templateId: string,
+    @GetUser('sub') userId: string,
+  ) {
+    return this.boardsService.findTemplateById(templateId, userId);
   }
 
   @Get('templates/:templateId/cards/:cardId')
@@ -65,8 +79,9 @@ export class BoardsController {
   findTemplateCardById(
     @Param('templateId') templateId: string,
     @Param('cardId') cardId: string,
+    @GetUser('sub') userId: string,
   ) {
-    return this.boardsService.findTemplateCardById(templateId, cardId);
+    return this.boardsService.findTemplateCardById(templateId, cardId, userId);
   }
 
   @Post('templates/:templateId/use')
@@ -139,6 +154,16 @@ export class BoardsController {
     @Body() dto: CreateTemplateFromBoardDto,
   ) {
     return this.boardsService.makeTemplate(boardId, userId, dto);
+  }
+
+  @Patch(':boardId/template-visibility')
+  @Roles(Role.OWNER)
+  @ResponseMessage('Cập nhật quyền hiển thị template thành công')
+  updateTemplateVisibility(
+    @Param('boardId') boardId: string,
+    @Body() dto: UpdateTemplateVisibilityDto,
+  ) {
+    return this.boardsService.updateTemplateVisibility(boardId, dto);
   }
 
   @Post(':boardId/background/presign')

@@ -42,10 +42,21 @@ export class BoardRolesGuard implements CanActivate {
     if (!boardId)
       throw new ForbiddenException('Không xác định được board từ request');
 
-    const membership = await this.prisma.boardMember.findUnique({
-      where: { boardId_userId: { boardId, userId } },
-      select: { role: true },
+    const board = await this.prisma.board.findUnique({
+      where: { id: boardId },
+      select: {
+        ownerId: true,
+        members: { where: { userId }, select: { role: true } },
+      },
     });
+    if (!board) throw new ForbiddenException('Không tìm thấy board');
+
+    if (board.ownerId === userId) {
+      request.boardRole = Role.OWNER;
+      return true;
+    }
+
+    const membership = board.members[0];
     if (!membership)
       throw new ForbiddenException('Bạn không phải thành viên của board này');
 

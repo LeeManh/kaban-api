@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma } from 'generated/prisma/client';
-import { Role, TemplateCategory } from 'generated/prisma/enums';
+import {
+  Role,
+  TemplateCategory,
+  TemplateVisibility,
+} from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { resolveStorageValue, StorageKeys } from '../storage/storage-keys.util';
@@ -28,10 +32,12 @@ import { AddMemberDto } from './dto/add-member.dto';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { CreateBoardFromTemplateDto } from './dto/create-board-from-template.dto';
 import { CreateTemplateFromBoardDto } from './dto/create-template-from-board.dto';
+import { FindMyTemplatesDto } from './dto/find-my-templates.dto';
 import { FindTemplatesDto } from './dto/find-templates.dto';
 import { PresignBoardBackgroundDto } from './dto/presign-board-background.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import { UpdateTemplateVisibilityDto } from './dto/update-template-visibility.dto';
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 
 const ORDER_STEP = 1000;
@@ -39,7 +45,9 @@ const ORDER_STEP = 1000;
 const BOARD_CONTENT_SELECT = {
   name: true,
   background: true,
+  ownerId: true,
   isTemplate: true,
+  templateVisibility: true,
   labels: { select: { id: true, name: true, color: true } },
   lists: {
     orderBy: { order: 'asc' },
@@ -141,11 +149,13 @@ export class BoardsService {
           this.prisma.board.findMany({
             where: {
               isTemplate: true,
+              templateVisibility: TemplateVisibility.PUBLIC,
               templateCategory: category,
               ...nameFilter,
             },
             orderBy: { createdAt: 'desc' },
             take: pageSize,
+            include: { owner: { select: PUBLIC_USER_SELECT } },
           }),
         ),
       );
@@ -153,9 +163,10 @@ export class BoardsService {
 
       return {
         items: await Promise.all(
-          items.map(async (board) => ({
+          items.map(async ({ owner, ...board }) => ({
             ...board,
             background: await this.resolveBackground(board.background),
+            owner: await withResolvedAvatar(owner, this.storage),
           })),
         ),
         total: items.length,
@@ -168,6 +179,7 @@ export class BoardsService {
     const page = dto.page ?? 1;
     const where = {
       isTemplate: true,
+      templateVisibility: TemplateVisibility.PUBLIC,
       templateCategory: dto.category,
       ...(dto.name && {
         name: { contains: dto.name, mode: 'insensitive' as const },
@@ -180,15 +192,17 @@ export class BoardsService {
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: { owner: { select: PUBLIC_USER_SELECT } },
       }),
       this.prisma.board.count({ where }),
     ]);
 
     return {
       items: await Promise.all(
-        items.map(async (board) => ({
+        items.map(async ({ owner, ...board }) => ({
           ...board,
           background: await this.resolveBackground(board.background),
+          owner: await withResolvedAvatar(owner, this.storage),
         })),
       ),
       total,
@@ -198,16 +212,49 @@ export class BoardsService {
     };
   }
 
-  async findTemplateById(templateId: string) {
+  async findMyTemplates(userId: string, dto: FindMyTemplatesDto) {
+    const page = dto.page ?? 1;
+    const pageSize = dto.pageSize ?? 20;
+    const where = { isTemplate: true, ownerId: userId };
+
+    const [items, total] = await Promise.all([
+      this.prisma.board.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { owner: { select: PUBLIC_USER_SELECT } },
+      }),
+      this.prisma.board.count({ where }),
+    ]);
+
+    return {
+      items: await Promise.all(
+        items.map(async ({ owner, ...board }) => ({
+          ...board,
+          background: await this.resolveBackground(board.background),
+          owner: await withResolvedAvatar(owner, this.storage),
+        })),
+      ),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  async findTemplateById(templateId: string, userId: string) {
     const template = await this.prisma.board.findUnique({
       where: { id: templateId },
       select: {
         id: true,
         name: true,
         background: true,
+        ownerId: true,
         isTemplate: true,
         templateCategory: true,
         templateDescription: true,
+        templateVisibility: true,
         createdAt: true,
         lists: {
           orderBy: { order: 'asc' },
@@ -241,7 +288,12 @@ export class BoardsService {
         },
       },
     });
-    if (!template || !template.isTemplate)
+    if (
+      !template ||
+      !template.isTemplate ||
+      (template.templateVisibility !== TemplateVisibility.PUBLIC &&
+        template.ownerId !== userId)
+    )
       throw new NotFoundException('Không tìm thấy template');
 
     const { lists, ...rest } = template;
@@ -267,12 +319,21 @@ export class BoardsService {
     };
   }
 
-  async findTemplateCardById(templateId: string, cardId: string) {
+  async findTemplateCardById(
+    templateId: string,
+    cardId: string,
+    userId: string,
+  ) {
     const template = await this.prisma.board.findFirst({
       where: { id: templateId, isTemplate: true },
-      select: { id: true },
+      select: { ownerId: true, templateVisibility: true },
     });
-    if (!template) throw new NotFoundException('Không tìm thấy template');
+    if (
+      !template ||
+      (template.templateVisibility !== TemplateVisibility.PUBLIC &&
+        template.ownerId !== userId)
+    )
+      throw new NotFoundException('Không tìm thấy template');
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { comments, ...card } = await this.cardsService.findOne(
@@ -291,7 +352,12 @@ export class BoardsService {
       where: { id: templateId },
       select: BOARD_CONTENT_SELECT,
     });
-    if (!template || !template.isTemplate)
+    if (
+      !template ||
+      !template.isTemplate ||
+      (template.templateVisibility !== TemplateVisibility.PUBLIC &&
+        template.ownerId !== userId)
+    )
       throw new NotFoundException('Không tìm thấy template');
 
     return this.prisma.$transaction(
@@ -337,6 +403,7 @@ export class BoardsService {
             isTemplate: true,
             templateCategory: dto.templateCategory,
             templateDescription: dto.templateDescription,
+            templateVisibility: TemplateVisibility.PRIVATE,
           },
         });
 
@@ -412,6 +479,23 @@ export class BoardsService {
         });
       }
     }
+  }
+
+  async updateTemplateVisibility(
+    boardId: string,
+    dto: UpdateTemplateVisibilityDto,
+  ) {
+    const board = await this.prisma.board.findUnique({
+      where: { id: boardId },
+      select: { isTemplate: true },
+    });
+    if (!board || !board.isTemplate)
+      throw new NotFoundException('Không tìm thấy template');
+
+    return this.prisma.board.update({
+      where: { id: boardId },
+      data: { templateVisibility: dto.templateVisibility },
+    });
   }
 
   async findOne(boardId: string, userId: string) {

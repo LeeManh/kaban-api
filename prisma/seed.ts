@@ -20,8 +20,8 @@ async function upsertUser(email: string, name: string) {
 }
 
 async function main() {
-  const owner = await upsertUser('lemanhddt@gmail.com', 'Manh Lee');
-  const member1 = await upsertUser('contact.vocatomo@gmail.com', 'Vocatomo');
+  const owner = await upsertUser('admin-kavas@gmail.com', 'Admin');
+  const member1 = await upsertUser('lemanhddt@gmail.com', 'Manh Lee');
 
   const board = await seedDemoBoard(prisma, { owner, member1 });
   await seedTemplates(prisma, owner.id);

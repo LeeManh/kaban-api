@@ -63,6 +63,11 @@ enum TemplateCategory {
   REMOTE_WORK
 }
 
+enum TemplateVisibility {
+  PRIVATE
+  PUBLIC
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -104,11 +109,11 @@ model RefreshToken {
 }
 
 model Board {
-  id                  String            @id @default(cuid())
+  id                  String              @id @default(cuid())
   name                String
   background          String
-  ownerId             String            @map("owner_id")
-  owner               User              @relation("BoardOwner", fields: [ownerId], references: [id])
+  ownerId             String              @map("owner_id")
+  owner               User                @relation("BoardOwner", fields: [ownerId], references: [id])
   members             BoardMember[]
   lists               List[]
   labels              Label[]
@@ -116,12 +121,13 @@ model Board {
   stars               BoardStar[]
   invites             BoardInvite[]
   inviteLink          BoardInviteLink?
-  createdAt           DateTime          @default(now()) @map("created_at")
-  isTemplate          Boolean           @default(false) @map("is_template")
-  templateCategory    TemplateCategory? @map("template_category")
-  templateDescription String?           @db.Text @map("template_description")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  isTemplate          Boolean             @default(false) @map("is_template")
+  templateCategory    TemplateCategory?   @map("template_category")
+  templateDescription String?             @map("template_description") @db.Text
+  templateVisibility  TemplateVisibility? @map("template_visibility")
 
-  @@index([isTemplate, templateCategory])
+  @@index([isTemplate, templateVisibility, templateCategory])
   @@map("boards")
 }
 
