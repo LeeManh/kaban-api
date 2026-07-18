@@ -109,23 +109,23 @@ model RefreshToken {
 }
 
 model Board {
-  id                  String              @id @default(cuid())
-  name                String
-  background          String
-  ownerId             String              @map("owner_id")
-  owner               User                @relation("BoardOwner", fields: [ownerId], references: [id])
-  members             BoardMember[]
-  lists               List[]
-  labels              Label[]
-  views               BoardView[]
-  stars               BoardStar[]
-  invites             BoardInvite[]
-  inviteLink          BoardInviteLink?
-  createdAt           DateTime            @default(now()) @map("created_at")
-  isTemplate          Boolean             @default(false) @map("is_template")
-  templateCategory    TemplateCategory?   @map("template_category")
-  templateDescription String?             @map("template_description") @db.Text
-  templateVisibility  TemplateVisibility? @map("template_visibility")
+  id                 String              @id @default(cuid())
+  name               String
+  background         String
+  description        String?             @db.Text
+  ownerId            String              @map("owner_id")
+  owner              User                @relation("BoardOwner", fields: [ownerId], references: [id])
+  members            BoardMember[]
+  lists              List[]
+  labels             Label[]
+  views              BoardView[]
+  stars              BoardStar[]
+  invites            BoardInvite[]
+  inviteLink         BoardInviteLink?
+  createdAt          DateTime            @default(now()) @map("created_at")
+  isTemplate         Boolean             @default(false) @map("is_template")
+  templateCategory   TemplateCategory?   @map("template_category")
+  templateVisibility TemplateVisibility? @map("template_visibility")
 
   @@index([isTemplate, templateVisibility, templateCategory])
   @@map("boards")

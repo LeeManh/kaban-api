@@ -3075,7 +3075,7 @@ export async function seedTemplates(prisma: PrismaClient, ownerId: string) {
         ownerId,
         isTemplate: true,
         templateCategory: template.category,
-        templateDescription: template.description,
+        description: template.description,
         templateVisibility: 'PUBLIC',
         labels: template.labels ? { create: template.labels } : undefined,
       },

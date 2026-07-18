@@ -250,10 +250,10 @@ export class BoardsService {
         id: true,
         name: true,
         background: true,
+        description: true,
         ownerId: true,
         isTemplate: true,
         templateCategory: true,
-        templateDescription: true,
         templateVisibility: true,
         createdAt: true,
         lists: {
@@ -402,7 +402,7 @@ export class BoardsService {
             ownerId: userId,
             isTemplate: true,
             templateCategory: dto.templateCategory,
-            templateDescription: dto.templateDescription,
+            description: dto.description,
             templateVisibility: TemplateVisibility.PRIVATE,
           },
         });

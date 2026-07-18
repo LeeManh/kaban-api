@@ -20,5 +20,5 @@ export class CreateTemplateFromBoardDto {
   @IsOptional()
   @IsString()
   @MaxLength(1000)
-  templateDescription?: string;
+  description?: string;
 }
