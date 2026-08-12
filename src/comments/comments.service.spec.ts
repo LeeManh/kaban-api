@@ -67,6 +67,7 @@ describe('CommentsService', () => {
         service.presignImage(boardId, cardId, {
           filename: 'a.png',
           contentType: 'image/png',
+          size: 1024,
         }),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -79,6 +80,7 @@ describe('CommentsService', () => {
       const result = await service.presignImage(boardId, cardId, {
         filename: 'a.png',
         contentType: 'image/png',
+        size: 1024,
       });
 
       expect(result.uploadUrl).toBe('https://upload.url');
