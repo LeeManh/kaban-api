@@ -1,25 +1,24 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
+import { E2eContext, setupE2eApp, teardownE2eApp } from './e2e-setup';
 
-describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+describe('App bootstrap (e2e)', () => {
+  let ctx: E2eContext;
 
-  beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    await app.init();
+  beforeAll(async () => {
+    ctx = await setupE2eApp();
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  afterAll(async () => {
+    await teardownE2eApp(ctx);
+  });
+
+  it('rejects an unauthenticated request to a protected route', async () => {
+    await request(ctx.app.getHttpServer()).get('/api/boards').expect(401);
+  });
+
+  it('returns 404 for an unknown route', async () => {
+    await request(ctx.app.getHttpServer())
+      .get('/api/this-route-does-not-exist')
+      .expect(404);
   });
 });

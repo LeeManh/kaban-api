@@ -233,6 +233,7 @@ export class AuthService {
       this.jwt.signAsync(payload, {
         secret: this.jwtCfg.refreshSecret,
         expiresIn: refreshExpiresIn,
+        jwtid: randomUUID(),
       }),
     ]);
 
