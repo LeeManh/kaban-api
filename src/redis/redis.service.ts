@@ -33,6 +33,19 @@ export class RedisService implements OnModuleDestroy {
     return this.redis.getdel(this.resetKey(tokenHash));
   }
 
+  async getJson<T>(key: string): Promise<T | null> {
+    const raw = await this.redis.get(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  }
+
+  async setJson(
+    key: string,
+    value: unknown,
+    ttlSeconds: number,
+  ): Promise<void> {
+    await this.redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
+  }
+
   private key(jti: string) {
     return `bl:access:${jti}`;
   }

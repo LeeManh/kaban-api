@@ -6,8 +6,13 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
-import { Role } from 'generated/prisma/enums';
+import {
+  Role,
+  TemplateCategory,
+  TemplateVisibility,
+} from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { StorageService } from '../storage/storage.service';
 import { CardsService } from '../cards/cards.service';
 import { APP_EVENT } from '../events/events.constants';
@@ -16,12 +21,14 @@ import { BoardsService } from './boards.service';
 describe('BoardsService', () => {
   let service: BoardsService;
   let prisma: DeepMockProxy<PrismaService>;
+  let redis: jest.Mocked<Pick<RedisService, 'getJson' | 'setJson'>>;
   let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit'>>;
 
   const boardId = 'board-1';
 
   beforeEach(() => {
     prisma = mockDeep<PrismaService>();
+    redis = { getJson: jest.fn().mockResolvedValue(null), setJson: jest.fn() };
     eventEmitter = { emit: jest.fn() };
 
     prisma.$transaction.mockImplementation((arg: unknown) => {
@@ -35,6 +42,7 @@ describe('BoardsService', () => {
     service = new BoardsService(
       prisma,
       {} as unknown as StorageService,
+      redis as unknown as RedisService,
       eventEmitter as unknown as EventEmitter2,
       {} as unknown as CardsService,
     );
@@ -59,6 +67,103 @@ describe('BoardsService', () => {
         data: { boardId, userId: 'user-1', role: Role.OWNER },
       });
       expect(result).toEqual({ id: boardId, name: 'My Board' });
+    });
+  });
+
+  describe('findTemplates', () => {
+    describe('browse mode (no category, no name)', () => {
+      it('returns cached rows without querying the database on a cache hit', async () => {
+        const cachedRow = {
+          id: 'board-1',
+          name: 'Cached Template',
+          background: '#fff',
+          description: null,
+          ownerId: 'user-1',
+          createdAt: new Date(),
+          isTemplate: true,
+          templateCategory: TemplateCategory.BUSINESS,
+          templateVisibility: TemplateVisibility.PUBLIC,
+          ownerName: 'Alice',
+          ownerEmail: 'alice@test.com',
+          ownerAvatar: null,
+        };
+        redis.getJson.mockResolvedValue({ rows: [cachedRow], total: 1 });
+
+        const result = await service.findTemplates({});
+
+        expect(prisma.$queryRaw).not.toHaveBeenCalled();
+        expect(prisma.board.count).not.toHaveBeenCalled();
+        expect(result.total).toBe(1);
+        expect(result.items[0].name).toBe('Cached Template');
+        expect(result.items[0].owner.id).toBe('user-1');
+      });
+
+      it('queries the database and populates the cache on a cache miss', async () => {
+        redis.getJson.mockResolvedValue(null);
+        prisma.$queryRaw.mockResolvedValue([]);
+        prisma.board.count.mockResolvedValue(0);
+
+        const result = await service.findTemplates({});
+
+        expect(prisma.$queryRaw).toHaveBeenCalled();
+        expect(prisma.board.count).toHaveBeenCalledWith({
+          where: {
+            isTemplate: true,
+            templateVisibility: TemplateVisibility.PUBLIC,
+          },
+        });
+        expect(redis.setJson).toHaveBeenCalledWith(
+          'tpl:browse:3',
+          { rows: [], total: 0 },
+          60,
+        );
+        expect(result.total).toBe(0);
+      });
+    });
+
+    describe('filtered mode (category or name given)', () => {
+      it('returns cached items without querying the database on a cache hit', async () => {
+        redis.getJson.mockResolvedValue({
+          items: [
+            {
+              id: 'board-1',
+              name: 'Design Template',
+              background: '#fff',
+              owner: {
+                id: 'user-1',
+                name: 'Alice',
+                email: 'alice@test.com',
+                avatar: null,
+              },
+            },
+          ],
+          total: 1,
+        });
+
+        const result = await service.findTemplates({
+          category: TemplateCategory.DESIGN,
+        });
+
+        expect(prisma.board.findMany).not.toHaveBeenCalled();
+        expect(prisma.board.count).not.toHaveBeenCalled();
+        expect(result.total).toBe(1);
+        expect(result.items[0].name).toBe('Design Template');
+      });
+
+      it('queries the database and populates the cache on a cache miss', async () => {
+        redis.getJson.mockResolvedValue(null);
+        prisma.board.findMany.mockResolvedValue([]);
+        prisma.board.count.mockResolvedValue(0);
+
+        await service.findTemplates({ category: TemplateCategory.DESIGN });
+
+        expect(prisma.board.findMany).toHaveBeenCalled();
+        expect(redis.setJson).toHaveBeenCalledWith(
+          'tpl:filtered:DESIGN::1:3',
+          { items: [], total: 0 },
+          60,
+        );
+      });
     });
   });
 

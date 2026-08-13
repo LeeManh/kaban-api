@@ -1,6 +1,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BoardsService } from '../../src/boards/boards.service';
 import { CardsService } from '../../src/cards/cards.service';
+import { RedisService } from '../../src/redis/redis.service';
 import { StorageService } from '../../src/storage/storage.service';
 import {
   setupTestDatabase,
@@ -18,6 +19,10 @@ describe('Board cascade delete (integration)', () => {
     boardsService = new BoardsService(
       db.prisma,
       {} as unknown as StorageService,
+      {
+        getJson: jest.fn().mockResolvedValue(null),
+        setJson: jest.fn(),
+      } as unknown as RedisService,
       { emit: jest.fn() } as unknown as EventEmitter2,
       {} as unknown as CardsService,
     );

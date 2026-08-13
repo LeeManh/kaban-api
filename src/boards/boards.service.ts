@@ -13,6 +13,7 @@ import {
   TemplateVisibility,
 } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { StorageService } from '../storage/storage.service';
 import { resolveStorageValue, StorageKeys } from '../storage/storage-keys.util';
 import {
@@ -41,6 +42,7 @@ import { UpdateTemplateVisibilityDto } from './dto/update-template-visibility.dt
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 
 const ORDER_STEP = 1000;
+const TEMPLATES_CACHE_TTL_SECONDS = 60;
 
 const BOARD_CONTENT_SELECT = {
   name: true,
@@ -90,11 +92,31 @@ type BoardContent = Prisma.BoardGetPayload<{
   select: typeof BOARD_CONTENT_SELECT;
 }>;
 
+type BoardTemplateListItem = Prisma.BoardGetPayload<{
+  include: { owner: { select: typeof PUBLIC_USER_SELECT } };
+}>;
+
+interface TemplateBrowseRow {
+  id: string;
+  name: string;
+  background: string;
+  description: string | null;
+  ownerId: string;
+  createdAt: Date;
+  isTemplate: boolean;
+  templateCategory: TemplateCategory;
+  templateVisibility: TemplateVisibility;
+  ownerName: string | null;
+  ownerEmail: string;
+  ownerAvatar: string | null;
+}
+
 @Injectable()
 export class BoardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly redis: RedisService,
     private readonly eventEmitter: EventEmitter2,
     private readonly cardsService: CardsService,
   ) {}
@@ -140,36 +162,27 @@ export class BoardsService {
     const pageSize = dto.pageSize ?? 3;
 
     if (!dto.category && !dto.name) {
-      const nameFilter = dto.name
-        ? { name: { contains: dto.name, mode: 'insensitive' as const } }
-        : {};
-
-      const grouped = await Promise.all(
-        Object.values(TemplateCategory).map((category) =>
-          this.prisma.board.findMany({
-            where: {
-              isTemplate: true,
-              templateVisibility: TemplateVisibility.PUBLIC,
-              templateCategory: category,
-              ...nameFilter,
-            },
-            orderBy: { createdAt: 'desc' },
-            take: pageSize,
-            include: { owner: { select: PUBLIC_USER_SELECT } },
-          }),
-        ),
-      );
-      const items = grouped.flat();
+      const { rows, total } = await this.fetchTemplateBrowseRows(pageSize);
 
       return {
         items: await Promise.all(
-          items.map(async ({ owner, ...board }) => ({
-            ...board,
-            background: await this.resolveBackground(board.background),
-            owner: await withResolvedAvatar(owner, this.storage),
-          })),
+          rows.map(
+            async ({ ownerName, ownerEmail, ownerAvatar, ...board }) => ({
+              ...board,
+              background: await this.resolveBackground(board.background),
+              owner: await withResolvedAvatar(
+                {
+                  id: board.ownerId,
+                  name: ownerName,
+                  email: ownerEmail,
+                  avatar: ownerAvatar,
+                },
+                this.storage,
+              ),
+            }),
+          ),
         ),
-        total: items.length,
+        total,
         page: 1,
         pageSize,
         totalPages: 1,
@@ -177,25 +190,12 @@ export class BoardsService {
     }
 
     const page = dto.page ?? 1;
-    const where = {
-      isTemplate: true,
-      templateVisibility: TemplateVisibility.PUBLIC,
-      templateCategory: dto.category,
-      ...(dto.name && {
-        name: { contains: dto.name, mode: 'insensitive' as const },
-      }),
-    };
-
-    const [items, total] = await Promise.all([
-      this.prisma.board.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: { owner: { select: PUBLIC_USER_SELECT } },
-      }),
-      this.prisma.board.count({ where }),
-    ]);
+    const { items, total } = await this.fetchTemplatePage(
+      dto.category,
+      dto.name,
+      page,
+      pageSize,
+    );
 
     return {
       items: await Promise.all(
@@ -210,6 +210,83 @@ export class BoardsService {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  private async fetchTemplateBrowseRows(pageSize: number) {
+    const cacheKey = `tpl:browse:${pageSize}`;
+    const cached = await this.redis.getJson<{
+      rows: TemplateBrowseRow[];
+      total: number;
+    }>(cacheKey);
+    if (cached) return cached;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.$queryRaw<TemplateBrowseRow[]>`
+        SELECT
+          b.id, b.name, b.background, b.description,
+          b.owner_id AS "ownerId", b.created_at AS "createdAt",
+          b.is_template AS "isTemplate",
+          b.template_category AS "templateCategory",
+          b.template_visibility AS "templateVisibility",
+          u.name AS "ownerName", u.email AS "ownerEmail", u.avatar AS "ownerAvatar"
+        FROM (
+          SELECT *, ROW_NUMBER() OVER (
+            PARTITION BY template_category ORDER BY created_at DESC
+          ) AS rn
+          FROM boards
+          WHERE is_template = true AND template_visibility = 'PUBLIC'
+        ) b
+        JOIN users u ON u.id = b.owner_id
+        WHERE b.rn <= ${pageSize}
+        ORDER BY b.template_category, b.created_at DESC
+      `,
+      this.prisma.board.count({
+        where: {
+          isTemplate: true,
+          templateVisibility: TemplateVisibility.PUBLIC,
+        },
+      }),
+    ]);
+
+    const result = { rows, total };
+    await this.redis.setJson(cacheKey, result, TEMPLATES_CACHE_TTL_SECONDS);
+    return result;
+  }
+
+  private async fetchTemplatePage(
+    category: TemplateCategory | undefined,
+    name: string | undefined,
+    page: number,
+    pageSize: number,
+  ) {
+    const cacheKey = `tpl:filtered:${category ?? 'none'}:${name ?? ''}:${page}:${pageSize}`;
+    const cached = await this.redis.getJson<{
+      items: BoardTemplateListItem[];
+      total: number;
+    }>(cacheKey);
+    if (cached) return cached;
+
+    const where = {
+      isTemplate: true,
+      templateVisibility: TemplateVisibility.PUBLIC,
+      templateCategory: category,
+      ...(name && { name: { contains: name, mode: 'insensitive' as const } }),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.board.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { owner: { select: PUBLIC_USER_SELECT } },
+      }),
+      this.prisma.board.count({ where }),
+    ]);
+
+    const result = { items, total };
+    await this.redis.setJson(cacheKey, result, TEMPLATES_CACHE_TTL_SECONDS);
+    return result;
   }
 
   async findMyTemplates(userId: string, dto: FindMyTemplatesDto) {
