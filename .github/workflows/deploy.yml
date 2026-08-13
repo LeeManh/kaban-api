@@ -22,7 +22,7 @@ jobs:
       - run: npx prisma generate
       - run: npm run build
       - run: npm run lint
-      - run: npx jest --passWithNoTests
+      - run: npx jest --coverage --coverageThreshold='{"global":{"statements":35,"branches":35,"functions":25,"lines":35}}'
 
   build-and-push:
     needs: test
