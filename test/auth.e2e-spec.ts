@@ -1,5 +1,10 @@
 import request from 'supertest';
-import { E2eContext, setupE2eApp, teardownE2eApp } from './e2e-setup';
+import {
+  API_PREFIX,
+  E2eContext,
+  setupE2eApp,
+  teardownE2eApp,
+} from './e2e-setup';
 
 describe('Auth flow (e2e)', () => {
   let ctx: E2eContext;
@@ -17,7 +22,7 @@ describe('Auth flow (e2e)', () => {
 
   it('registers a new user and returns a token pair', async () => {
     const res = await request(ctx.app.getHttpServer())
-      .post('/api/auth/register')
+      .post(`${API_PREFIX}/auth/register`)
       .send({ email, password, name: 'E2E User' })
       .expect(200);
 
@@ -27,21 +32,21 @@ describe('Auth flow (e2e)', () => {
 
   it('rejects registering the same email twice', async () => {
     await request(ctx.app.getHttpServer())
-      .post('/api/auth/register')
+      .post(`${API_PREFIX}/auth/register`)
       .send({ email, password, name: 'E2E User' })
       .expect(409);
   });
 
   it('rejects login with the wrong password', async () => {
     await request(ctx.app.getHttpServer())
-      .post('/api/auth/login')
+      .post(`${API_PREFIX}/auth/login`)
       .send({ email, password: 'wrong-password' })
       .expect(401);
   });
 
   it('logs in with the correct credentials and returns a token pair', async () => {
     const res = await request(ctx.app.getHttpServer())
-      .post('/api/auth/login')
+      .post(`${API_PREFIX}/auth/login`)
       .send({ email, password })
       .expect(200);
 
@@ -51,12 +56,12 @@ describe('Auth flow (e2e)', () => {
 
   it('refreshes the token pair with a valid refresh token', async () => {
     const login = await request(ctx.app.getHttpServer())
-      .post('/api/auth/login')
+      .post(`${API_PREFIX}/auth/login`)
       .send({ email, password })
       .expect(200);
 
     const res = await request(ctx.app.getHttpServer())
-      .post('/api/auth/refresh')
+      .post(`${API_PREFIX}/auth/refresh`)
       .send({ refreshToken: login.body.data.refreshToken })
       .expect(201);
 
@@ -67,44 +72,44 @@ describe('Auth flow (e2e)', () => {
 
   it('rejects reusing a refresh token that was already rotated', async () => {
     const login = await request(ctx.app.getHttpServer())
-      .post('/api/auth/login')
+      .post(`${API_PREFIX}/auth/login`)
       .send({ email, password })
       .expect(200);
     const oldRefreshToken: string = login.body.data.refreshToken;
 
     await request(ctx.app.getHttpServer())
-      .post('/api/auth/refresh')
+      .post(`${API_PREFIX}/auth/refresh`)
       .send({ refreshToken: oldRefreshToken })
       .expect(201);
 
     await request(ctx.app.getHttpServer())
-      .post('/api/auth/refresh')
+      .post(`${API_PREFIX}/auth/refresh`)
       .send({ refreshToken: oldRefreshToken })
       .expect(401);
   });
 
   it('logs out and revokes the refresh token', async () => {
     const login = await request(ctx.app.getHttpServer())
-      .post('/api/auth/login')
+      .post(`${API_PREFIX}/auth/login`)
       .send({ email, password })
       .expect(200);
     const { accessToken, refreshToken } = login.body.data;
 
     await request(ctx.app.getHttpServer())
-      .post('/api/auth/logout')
+      .post(`${API_PREFIX}/auth/logout`)
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ refreshToken })
       .expect(204);
 
     await request(ctx.app.getHttpServer())
-      .post('/api/auth/refresh')
+      .post(`${API_PREFIX}/auth/refresh`)
       .send({ refreshToken })
       .expect(401);
   });
 
   it('rejects logout without an access token', async () => {
     await request(ctx.app.getHttpServer())
-      .post('/api/auth/logout')
+      .post(`${API_PREFIX}/auth/logout`)
       .send({ refreshToken: 'not-a-real-token.but-jwt.shaped-x' })
       .expect(401);
   });

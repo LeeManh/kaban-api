@@ -1,5 +1,10 @@
 import request from 'supertest';
-import { E2eContext, setupE2eApp, teardownE2eApp } from './e2e-setup';
+import {
+  API_PREFIX,
+  E2eContext,
+  setupE2eApp,
+  teardownE2eApp,
+} from './e2e-setup';
 
 describe('App bootstrap (e2e)', () => {
   let ctx: E2eContext;
@@ -13,12 +18,14 @@ describe('App bootstrap (e2e)', () => {
   });
 
   it('rejects an unauthenticated request to a protected route', async () => {
-    await request(ctx.app.getHttpServer()).get('/api/boards').expect(401);
+    await request(ctx.app.getHttpServer())
+      .get(`${API_PREFIX}/boards`)
+      .expect(401);
   });
 
   it('returns 404 for an unknown route', async () => {
     await request(ctx.app.getHttpServer())
-      .get('/api/this-route-does-not-exist')
+      .get(`${API_PREFIX}/this-route-does-not-exist`)
       .expect(404);
   });
 });

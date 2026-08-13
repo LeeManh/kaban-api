@@ -1,10 +1,15 @@
 import 'dotenv/config';
 import './instrument';
-import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigType } from '@nestjs/config';
 import { appConfig } from './config';
+import { API_VERSION } from './api-version';
 import {
   FieldError,
   HttpExceptionFilter,
@@ -15,6 +20,10 @@ async function bootstrap() {
   const config = app.get<ConfigType<typeof appConfig>>(appConfig.KEY);
 
   app.setGlobalPrefix('api');
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: API_VERSION,
+  });
   app.enableCors({
     origin: process.env.FRONTEND_URL,
     allowedHeaders: ['Content-Type', 'Authorization'],

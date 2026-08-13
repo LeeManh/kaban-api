@@ -4,6 +4,7 @@ import {
   BadRequestException,
   INestApplication,
   ValidationPipe,
+  VersioningType,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
@@ -14,6 +15,7 @@ import {
 } from '@testcontainers/postgresql';
 import { RedisContainer, StartedRedisContainer } from '@testcontainers/redis';
 import { AppModule } from '../src/app.module';
+import { API_VERSION } from '../src/api-version';
 import {
   FieldError,
   HttpExceptionFilter,
@@ -24,6 +26,8 @@ import { DUE_REMINDER_QUEUE } from '../src/notifications/notifications.constants
 import { DueReminderProcessor } from '../src/notifications/due-reminder.processor';
 import { ATTACHMENTS_QUEUE } from '../src/attachments/attachment.constants';
 import { AttachmentsProcessor } from '../src/attachments/attachments.processor';
+
+export const API_PREFIX = `/api/v${API_VERSION}`;
 
 const QUEUE_NAMES = [MAIL_QUEUE, DUE_REMINDER_QUEUE, ATTACHMENTS_QUEUE];
 const PROCESSOR_CLASSES = [
@@ -71,6 +75,10 @@ export async function setupE2eApp(): Promise<E2eContext> {
   const app = moduleFixture.createNestApplication();
   app.enableShutdownHooks();
   app.setGlobalPrefix('api');
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: API_VERSION,
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
