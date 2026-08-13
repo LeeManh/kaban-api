@@ -23,6 +23,7 @@ describe('Board cascade delete (integration)', () => {
         getJson: jest.fn().mockResolvedValue(null),
         setJson: jest.fn(),
         del: jest.fn(),
+        delByPattern: jest.fn(),
       } as unknown as RedisService,
       { emit: jest.fn() } as unknown as EventEmitter2,
       {} as unknown as CardsService,

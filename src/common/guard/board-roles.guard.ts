@@ -9,6 +9,7 @@ import { Request } from 'express';
 import { Role } from 'generated/prisma/enums';
 import { JwtPayload } from 'src/auth/types/jwt-payload.type';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { RedisService } from 'src/redis/redis.service';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 const ROLE_LEVEL: Record<Role, number> = {
@@ -18,11 +19,19 @@ const ROLE_LEVEL: Record<Role, number> = {
   OWNER: 4,
 };
 
+const ROLE_CACHE_TTL_SECONDS = 10;
+
+interface CachedBoardAccess {
+  ownerId: string;
+  role: Role | null;
+}
+
 @Injectable()
 export class BoardRolesGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -42,6 +51,35 @@ export class BoardRolesGuard implements CanActivate {
     if (!boardId)
       throw new ForbiddenException('Không xác định được board từ request');
 
+    const access = await this.resolveBoardAccess(boardId, userId);
+    if (!access) throw new ForbiddenException('Không tìm thấy board');
+
+    if (access.ownerId === userId) {
+      request.boardRole = Role.OWNER;
+      return true;
+    }
+
+    if (!access.role)
+      throw new ForbiddenException('Bạn không phải thành viên của board này');
+
+    const minRequired = Math.min(...required.map((r) => ROLE_LEVEL[r]));
+    if (ROLE_LEVEL[access.role] < minRequired)
+      throw new ForbiddenException(
+        'Bạn không đủ quyền thực hiện hành động này',
+      );
+
+    request.boardRole = access.role;
+    return true;
+  }
+
+  private async resolveBoardAccess(
+    boardId: string,
+    userId: string,
+  ): Promise<CachedBoardAccess | null> {
+    const cacheKey = `board:role:${boardId}:${userId}`;
+    const cached = await this.redis.getJson<CachedBoardAccess>(cacheKey);
+    if (cached) return cached;
+
     const board = await this.prisma.board.findUnique({
       where: { id: boardId },
       select: {
@@ -49,25 +87,15 @@ export class BoardRolesGuard implements CanActivate {
         members: { where: { userId }, select: { role: true } },
       },
     });
-    if (!board) throw new ForbiddenException('Không tìm thấy board');
+    if (!board) return null;
 
-    if (board.ownerId === userId) {
-      request.boardRole = Role.OWNER;
-      return true;
-    }
+    const access: CachedBoardAccess = {
+      ownerId: board.ownerId,
+      role: board.members[0]?.role ?? null,
+    };
+    await this.redis.setJson(cacheKey, access, ROLE_CACHE_TTL_SECONDS);
 
-    const membership = board.members[0];
-    if (!membership)
-      throw new ForbiddenException('Bạn không phải thành viên của board này');
-
-    const minRequired = Math.min(...required.map((r) => ROLE_LEVEL[r]));
-    if (ROLE_LEVEL[membership.role] < minRequired)
-      throw new ForbiddenException(
-        'Bạn không đủ quyền thực hiện hành động này',
-      );
-
-    request.boardRole = membership.role;
-    return true;
+    return access;
   }
 
   private extractBoardId(req: Request): string | undefined {

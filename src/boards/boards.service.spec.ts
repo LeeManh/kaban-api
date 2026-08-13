@@ -319,8 +319,10 @@ describe('BoardsService', () => {
       expect(prisma.board.delete).toHaveBeenCalledWith({
         where: { id: boardId },
       });
+      expect(redis.delByPattern).toHaveBeenCalledWith(
+        `board:role:${boardId}:*`,
+      );
       expect(redis.del).not.toHaveBeenCalled();
-      expect(redis.delByPattern).not.toHaveBeenCalled();
     });
 
     it('invalidates the template caches when deleting a template', async () => {
@@ -383,6 +385,7 @@ describe('BoardsService', () => {
           data: { boardId, userId: 'user-2', role: Role.MEMBER },
         }),
       );
+      expect(redis.del).toHaveBeenCalledWith(`board:role:${boardId}:user-2`);
     });
   });
 
@@ -480,6 +483,9 @@ describe('BoardsService', () => {
       );
 
       expect(result.role).toBe(Role.ADMIN);
+      expect(redis.del).toHaveBeenCalledWith(
+        `board:role:${boardId}:${targetUserId}`,
+      );
     });
 
     it('allows a non-owner caller to change MEMBER/VIEWER without touching ADMIN', async () => {
@@ -554,6 +560,9 @@ describe('BoardsService', () => {
         APP_EVENT.BOARD_MEMBER_REMOVED,
         { boardId, userId: targetUserId },
       );
+      expect(redis.del).toHaveBeenCalledWith(
+        `board:role:${boardId}:${targetUserId}`,
+      );
     });
   });
 
@@ -588,6 +597,7 @@ describe('BoardsService', () => {
         APP_EVENT.BOARD_MEMBER_REMOVED,
         { boardId, userId: 'user-1' },
       );
+      expect(redis.del).toHaveBeenCalledWith(`board:role:${boardId}:user-1`);
     });
   });
 
@@ -630,6 +640,8 @@ describe('BoardsService', () => {
         data: { ownerId: 'user-2' },
       });
       expect(result).toEqual({ boardId, ownerId: 'user-2' });
+      expect(redis.del).toHaveBeenCalledWith(`board:role:${boardId}:user-1`);
+      expect(redis.del).toHaveBeenCalledWith(`board:role:${boardId}:user-2`);
     });
   });
 });

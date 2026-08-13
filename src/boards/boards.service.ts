@@ -775,6 +775,8 @@ export class BoardsService {
         user: { select: PUBLIC_USER_SELECT },
       },
     });
+    await this.invalidateBoardRoleCache(boardId, user.id);
+
     return {
       ...created,
       user: await withResolvedAvatar(created.user, this.storage),
@@ -824,6 +826,8 @@ export class BoardsService {
         user: { select: PUBLIC_USER_SELECT },
       },
     });
+    await this.invalidateBoardRoleCache(boardId, targetUserId);
+
     return {
       ...updated,
       user: await withResolvedAvatar(updated.user, this.storage),
@@ -857,6 +861,8 @@ export class BoardsService {
       ...(await this.buildUnassignFromBoardCardsOps(boardId, targetUserId)),
     ]);
 
+    await this.invalidateBoardRoleCache(boardId, targetUserId);
+
     this.eventEmitter.emit(APP_EVENT.BOARD_MEMBER_REMOVED, {
       boardId,
       userId: targetUserId,
@@ -884,6 +890,8 @@ export class BoardsService {
       }),
       ...(await this.buildUnassignFromBoardCardsOps(boardId, userId)),
     ]);
+
+    await this.invalidateBoardRoleCache(boardId, userId);
 
     this.eventEmitter.emit(APP_EVENT.BOARD_MEMBER_REMOVED, {
       boardId,
@@ -926,7 +934,7 @@ export class BoardsService {
         'Người nhận quyền không phải thành viên của board',
       );
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       await tx.boardMember.update({
         where: { boardId_userId: { boardId, userId: callerId } },
         data: { role: Role.ADMIN },
@@ -941,6 +949,13 @@ export class BoardsService {
       });
       return { boardId, ownerId: dto.newOwnerId };
     });
+
+    await Promise.all([
+      this.invalidateBoardRoleCache(boardId, callerId),
+      this.invalidateBoardRoleCache(boardId, dto.newOwnerId),
+    ]);
+
+    return result;
   }
 
   async update(boardId: string, dto: UpdateBoardDto) {
@@ -959,6 +974,7 @@ export class BoardsService {
     if (!board) throw new NotFoundException('Không tìm thấy board');
 
     await this.prisma.board.delete({ where: { id: boardId } });
+    await this.invalidateAllBoardRoleCache(boardId);
 
     if (board.isTemplate) {
       await this.redis.del(`tpl:detail:${boardId}`);
@@ -973,6 +989,17 @@ export class BoardsService {
       this.redis.delByPattern('tpl:browse:*'),
       this.redis.delByPattern('tpl:filtered:*'),
     ]);
+  }
+
+  private invalidateBoardRoleCache(
+    boardId: string,
+    userId: string,
+  ): Promise<void> {
+    return this.redis.del(`board:role:${boardId}:${userId}`);
+  }
+
+  private invalidateAllBoardRoleCache(boardId: string): Promise<void> {
+    return this.redis.delByPattern(`board:role:${boardId}:*`);
   }
 
   private async ensureExists(boardId: string) {
