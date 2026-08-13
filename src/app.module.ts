@@ -3,6 +3,7 @@ import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { SentryModule } from '@sentry/nestjs/setup';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import {
   appConfig,
@@ -11,6 +12,7 @@ import {
   redisConfig,
   storageConfig,
   mailConfig,
+  throttlerConfig,
   validationSchema,
 } from './config';
 import { AuthModule } from './auth/auth.module';
@@ -45,6 +47,7 @@ import { InvitesModule } from './invites/invites.module';
         redisConfig,
         storageConfig,
         mailConfig,
+        throttlerConfig,
       ],
       validationSchema,
       validationOptions: {
@@ -54,6 +57,13 @@ import { InvitesModule } from './invites/invites.module';
     PrismaModule,
     EventEmitterModule.forRoot(),
     JwtModule.register({ global: true }),
+    ThrottlerModule.forRootAsync({
+      inject: [throttlerConfig.KEY],
+      useFactory: (cfg: ConfigType<typeof throttlerConfig>) => ({
+        throttlers: [{ ttl: cfg.ttl, limit: cfg.limit }],
+        skipIf: () => process.env.NODE_ENV === 'test',
+      }),
+    }),
     BullModule.forRootAsync({
       inject: [redisConfig.KEY],
       useFactory: (cfg: ConfigType<typeof redisConfig>) => {
@@ -87,6 +97,10 @@ import { InvitesModule } from './invites/invites.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: ResponseInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
     {
       provide: APP_GUARD,

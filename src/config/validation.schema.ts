@@ -34,4 +34,8 @@ export const validationSchema = Joi.object({
   MAIL_USER: Joi.string(),
   MAIL_PASS: Joi.string(),
   MAIL_FROM: Joi.string(),
+
+  // Rate limiting
+  THROTTLE_TTL_MS: Joi.number().default(60000),
+  THROTTLE_LIMIT: Joi.number().default(100),
 });
