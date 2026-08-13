@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { APP_EVENT } from '../events/events.constants';
@@ -21,6 +21,7 @@ describe('ChecklistsService', () => {
       update: jest.Mock;
       delete: jest.Mock;
     };
+    board: { findUnique: jest.Mock };
   };
   let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit'>>;
 
@@ -43,7 +44,9 @@ describe('ChecklistsService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      board: { findUnique: jest.fn() },
     };
+    prisma.board.findUnique.mockResolvedValue(null);
     eventEmitter = { emit: jest.fn() };
 
     service = new ChecklistsService(
@@ -59,6 +62,19 @@ describe('ChecklistsService', () => {
       await expect(
         service.create(boardId, cardId, { title: 'Todo' }),
       ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.checklist.create).not.toHaveBeenCalled();
+    });
+
+    it('throws when the board is a PUBLIC template', async () => {
+      prisma.card.findFirst.mockResolvedValue({ id: cardId });
+      prisma.board.findUnique.mockResolvedValue({
+        isTemplate: true,
+        templateVisibility: 'PUBLIC',
+      });
+
+      await expect(
+        service.create(boardId, cardId, { title: 'Todo' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.checklist.create).not.toHaveBeenCalled();
     });
 

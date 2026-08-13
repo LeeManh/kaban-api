@@ -33,6 +33,18 @@ describe('ListsService', () => {
   });
 
   describe('create', () => {
+    it('throws when the board is a PUBLIC template', async () => {
+      prisma.board.findUnique.mockResolvedValue({
+        isTemplate: true,
+        templateVisibility: 'PUBLIC',
+      } as never);
+
+      await expect(
+        service.create(boardId, { title: 'Todo' }, actorId),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.list.create).not.toHaveBeenCalled();
+    });
+
     it('starts order at 1000 when the board has no lists yet', async () => {
       prisma.list.findFirst.mockResolvedValue(null);
       prisma.list.create.mockResolvedValue({ id: listId } as never);

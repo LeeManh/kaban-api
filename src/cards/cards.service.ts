@@ -10,6 +10,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Queue } from 'bullmq';
 import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureTemplateContentEditable } from '../boards/template-guard.util';
 import { StorageService } from '../storage/storage.service';
 import { resolveMarkdownImages } from '../storage/markdown-images.util';
 import { resolveStorageValue, StorageKeys } from '../storage/storage-keys.util';
@@ -63,6 +64,7 @@ export class CardsService {
     actorId: string,
   ) {
     await this.ensureListInBoard(boardId, listId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
 
     const order = dto.addToTop
       ? await this.computeTopOrder(listId)
@@ -201,6 +203,7 @@ export class CardsService {
     actorId: string,
   ) {
     await this.getCardInBoard(boardId, cardId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     const { version, ...data } = dto;
     const card = await this.updateWithVersion(cardId, version, data);
 
@@ -247,6 +250,7 @@ export class CardsService {
 
   async remove(boardId: string, cardId: string, actorId: string) {
     const card = await this.getCardInBoard(boardId, cardId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     await this.prisma.card.delete({ where: { id: cardId } });
     try {
       await this.scheduleDueReminder(cardId, null, null);
@@ -301,6 +305,7 @@ export class CardsService {
     actorId: string,
   ) {
     const card = await this.getCardInBoard(boardId, cardId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     const targetListId = dto.listId ?? card.listId;
 
     if (dto.listId && dto.listId !== card.listId)

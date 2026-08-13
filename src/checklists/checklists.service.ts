@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureTemplateContentEditable } from '../boards/template-guard.util';
 import { APP_EVENT } from '../events/events.constants';
 import type { ChecklistItemToggledEvent } from '../events/events.types';
 import { CreateChecklistDto } from './dto/create-checklist.dto';
@@ -19,6 +20,7 @@ export class ChecklistsService {
 
   async create(boardId: string, cardId: string, dto: CreateChecklistDto) {
     await this.ensureCardInBoard(boardId, cardId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
 
     const last = await this.prisma.checklist.findFirst({
       where: { cardId },
@@ -43,6 +45,7 @@ export class ChecklistsService {
 
   async update(boardId: string, checklistId: string, dto: UpdateChecklistDto) {
     await this.getChecklistInBoard(boardId, checklistId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     return this.prisma.checklist.update({
       where: { id: checklistId },
       data: dto,
@@ -51,6 +54,7 @@ export class ChecklistsService {
 
   async remove(boardId: string, checklistId: string) {
     await this.getChecklistInBoard(boardId, checklistId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     await this.prisma.checklist.delete({ where: { id: checklistId } });
     return { id: checklistId };
   }
@@ -61,6 +65,7 @@ export class ChecklistsService {
     dto: CreateChecklistItemDto,
   ) {
     await this.getChecklistInBoard(boardId, checklistId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
 
     const last = await this.prisma.checklistItem.findFirst({
       where: { checklistId },
@@ -80,6 +85,7 @@ export class ChecklistsService {
     dto: UpdateChecklistItemDto,
   ) {
     await this.getItemInBoard(boardId, itemId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     return this.prisma.checklistItem.update({
       where: { id: itemId },
       data: dto,
@@ -88,6 +94,7 @@ export class ChecklistsService {
 
   async toggleItem(boardId: string, itemId: string, actorId: string) {
     const item = await this.getItemInBoard(boardId, itemId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     const updated = await this.prisma.checklistItem.update({
       where: { id: itemId },
       data: { isDone: !item.isDone },
@@ -104,6 +111,7 @@ export class ChecklistsService {
 
   async removeItem(boardId: string, itemId: string) {
     await this.getItemInBoard(boardId, itemId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     await this.prisma.checklistItem.delete({ where: { id: itemId } });
     return { id: itemId };
   }

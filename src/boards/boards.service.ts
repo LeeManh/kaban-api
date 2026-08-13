@@ -43,6 +43,7 @@ import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 
 const ORDER_STEP = 1000;
 const TEMPLATES_CACHE_TTL_SECONDS = 60;
+const TEMPLATE_DETAIL_CACHE_TTL_SECONDS = 600;
 
 const BOARD_CONTENT_SELECT = {
   name: true,
@@ -94,6 +95,52 @@ type BoardContent = Prisma.BoardGetPayload<{
 
 type BoardTemplateListItem = Prisma.BoardGetPayload<{
   include: { owner: { select: typeof PUBLIC_USER_SELECT } };
+}>;
+
+const TEMPLATE_DETAIL_SELECT = {
+  id: true,
+  name: true,
+  background: true,
+  description: true,
+  ownerId: true,
+  isTemplate: true,
+  templateCategory: true,
+  templateVisibility: true,
+  createdAt: true,
+  lists: {
+    orderBy: { order: 'asc' },
+    select: {
+      id: true,
+      title: true,
+      order: true,
+      cards: {
+        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          order: true,
+          priority: true,
+          dueDate: true,
+          reminderOffsetMinutes: true,
+          isDone: true,
+          cover: true,
+          version: true,
+          listId: true,
+          createdAt: true,
+          updatedAt: true,
+          labels: LABEL_SELECT,
+          assignees: ASSIGNEE_SELECT,
+          _count: COUNT_SELECT,
+          checklists: CHECKLIST_ITEMS_SELECT,
+        },
+      },
+    },
+  },
+} satisfies Prisma.BoardSelect;
+
+type TemplateDetail = Prisma.BoardGetPayload<{
+  select: typeof TEMPLATE_DETAIL_SELECT;
 }>;
 
 interface TemplateBrowseRow {
@@ -321,50 +368,7 @@ export class BoardsService {
   }
 
   async findTemplateById(templateId: string, userId: string) {
-    const template = await this.prisma.board.findUnique({
-      where: { id: templateId },
-      select: {
-        id: true,
-        name: true,
-        background: true,
-        description: true,
-        ownerId: true,
-        isTemplate: true,
-        templateCategory: true,
-        templateVisibility: true,
-        createdAt: true,
-        lists: {
-          orderBy: { order: 'asc' },
-          select: {
-            id: true,
-            title: true,
-            order: true,
-            cards: {
-              orderBy: { order: 'asc' },
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                order: true,
-                priority: true,
-                dueDate: true,
-                reminderOffsetMinutes: true,
-                isDone: true,
-                cover: true,
-                version: true,
-                listId: true,
-                createdAt: true,
-                updatedAt: true,
-                labels: LABEL_SELECT,
-                assignees: ASSIGNEE_SELECT,
-                _count: COUNT_SELECT,
-                checklists: CHECKLIST_ITEMS_SELECT,
-              },
-            },
-          },
-        },
-      },
-    });
+    const template = await this.fetchTemplateDetail(templateId);
     if (
       !template ||
       !template.isTemplate ||
@@ -394,6 +398,29 @@ export class BoardsService {
         })),
       ),
     };
+  }
+
+  private async fetchTemplateDetail(
+    templateId: string,
+  ): Promise<TemplateDetail | null> {
+    const cacheKey = `tpl:detail:${templateId}`;
+    const cached = await this.redis.getJson<TemplateDetail>(cacheKey);
+    if (cached) return cached;
+
+    const template = await this.prisma.board.findUnique({
+      where: { id: templateId },
+      select: TEMPLATE_DETAIL_SELECT,
+    });
+
+    if (template?.templateVisibility === TemplateVisibility.PUBLIC) {
+      await this.redis.setJson(
+        cacheKey,
+        template,
+        TEMPLATE_DETAIL_CACHE_TTL_SECONDS,
+      );
+    }
+
+    return template;
   }
 
   async findTemplateCardById(
@@ -569,10 +596,13 @@ export class BoardsService {
     if (!board || !board.isTemplate)
       throw new NotFoundException('Không tìm thấy template');
 
-    return this.prisma.board.update({
+    const updated = await this.prisma.board.update({
       where: { id: boardId },
       data: { templateVisibility: dto.templateVisibility },
     });
+    await this.redis.del(`tpl:detail:${boardId}`);
+
+    return updated;
   }
 
   async findOne(boardId: string, userId: string) {

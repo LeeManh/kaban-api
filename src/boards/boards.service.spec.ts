@@ -21,14 +21,18 @@ import { BoardsService } from './boards.service';
 describe('BoardsService', () => {
   let service: BoardsService;
   let prisma: DeepMockProxy<PrismaService>;
-  let redis: jest.Mocked<Pick<RedisService, 'getJson' | 'setJson'>>;
+  let redis: jest.Mocked<Pick<RedisService, 'getJson' | 'setJson' | 'del'>>;
   let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit'>>;
 
   const boardId = 'board-1';
 
   beforeEach(() => {
     prisma = mockDeep<PrismaService>();
-    redis = { getJson: jest.fn().mockResolvedValue(null), setJson: jest.fn() };
+    redis = {
+      getJson: jest.fn().mockResolvedValue(null),
+      setJson: jest.fn(),
+      del: jest.fn(),
+    };
     eventEmitter = { emit: jest.fn() };
 
     prisma.$transaction.mockImplementation((arg: unknown) => {
@@ -164,6 +168,104 @@ describe('BoardsService', () => {
           60,
         );
       });
+    });
+  });
+
+  describe('findTemplateById', () => {
+    const ownerId = 'user-1';
+    const templateDetail = {
+      id: boardId,
+      name: 'Template',
+      background: '#fff',
+      description: null,
+      ownerId,
+      isTemplate: true,
+      templateCategory: TemplateCategory.BUSINESS,
+      templateVisibility: TemplateVisibility.PUBLIC,
+      createdAt: new Date(),
+      lists: [],
+    };
+
+    it('returns the cached template without querying the database on a cache hit', async () => {
+      redis.getJson.mockResolvedValue(templateDetail);
+
+      const result = await service.findTemplateById(boardId, ownerId);
+
+      expect(prisma.board.findUnique).not.toHaveBeenCalled();
+      expect(result.id).toBe(boardId);
+    });
+
+    it('queries the database and caches the result when the template is PUBLIC', async () => {
+      redis.getJson.mockResolvedValue(null);
+      prisma.board.findUnique.mockResolvedValue(templateDetail);
+
+      await service.findTemplateById(boardId, ownerId);
+
+      expect(prisma.board.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: boardId } }),
+      );
+      expect(redis.setJson).toHaveBeenCalledWith(
+        `tpl:detail:${boardId}`,
+        templateDetail,
+        600,
+      );
+    });
+
+    it('does not cache the result when the template is PRIVATE', async () => {
+      redis.getJson.mockResolvedValue(null);
+      prisma.board.findUnique.mockResolvedValue({
+        ...templateDetail,
+        templateVisibility: TemplateVisibility.PRIVATE,
+      });
+
+      await service.findTemplateById(boardId, ownerId);
+
+      expect(redis.setJson).not.toHaveBeenCalled();
+    });
+
+    it('throws when a non-owner requests a PRIVATE template', async () => {
+      redis.getJson.mockResolvedValue(null);
+      prisma.board.findUnique.mockResolvedValue({
+        ...templateDetail,
+        templateVisibility: TemplateVisibility.PRIVATE,
+      });
+
+      await expect(
+        service.findTemplateById(boardId, 'other-user'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('updateTemplateVisibility', () => {
+    it('throws when the board does not exist or is not a template', async () => {
+      prisma.board.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateTemplateVisibility(boardId, {
+          templateVisibility: TemplateVisibility.PRIVATE,
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.board.update).not.toHaveBeenCalled();
+    });
+
+    it('updates the visibility and invalidates the detail cache', async () => {
+      prisma.board.findUnique.mockResolvedValue({
+        isTemplate: true,
+      } as never);
+      prisma.board.update.mockResolvedValue({
+        id: boardId,
+        templateVisibility: TemplateVisibility.PRIVATE,
+      } as never);
+
+      await service.updateTemplateVisibility(boardId, {
+        templateVisibility: TemplateVisibility.PRIVATE,
+      });
+
+      expect(prisma.board.update).toHaveBeenCalledWith({
+        where: { id: boardId },
+        data: { templateVisibility: TemplateVisibility.PRIVATE },
+      });
+      expect(redis.del).toHaveBeenCalledWith(`tpl:detail:${boardId}`);
     });
   });
 

@@ -25,6 +25,7 @@ describe('CardsService', () => {
     list: { findUnique: jest.Mock };
     user: { findUnique: jest.Mock };
     boardMember: { findUnique: jest.Mock };
+    board: { findUnique: jest.Mock };
   };
   let storage: jest.Mocked<
     Pick<StorageService, 'getUploadUrl' | 'getDownloadUrl'>
@@ -50,6 +51,7 @@ describe('CardsService', () => {
       list: { findUnique: jest.fn() },
       user: { findUnique: jest.fn() },
       boardMember: { findUnique: jest.fn() },
+      board: { findUnique: jest.fn() },
     };
     storage = { getUploadUrl: jest.fn(), getDownloadUrl: jest.fn() };
     mailQueue = { add: jest.fn() };
@@ -58,6 +60,7 @@ describe('CardsService', () => {
 
     dueReminderQueue.getJob.mockResolvedValue(undefined);
     prisma.list.findUnique.mockResolvedValue({ boardId });
+    prisma.board.findUnique.mockResolvedValue(null);
 
     service = new CardsService(
       prisma as unknown as PrismaService,
@@ -75,6 +78,18 @@ describe('CardsService', () => {
       await expect(
         service.create(boardId, listId, { title: 'Task' }, actorId),
       ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.card.create).not.toHaveBeenCalled();
+    });
+
+    it('throws when the board is a PUBLIC template', async () => {
+      prisma.board.findUnique.mockResolvedValue({
+        isTemplate: true,
+        templateVisibility: 'PUBLIC',
+      });
+
+      await expect(
+        service.create(boardId, listId, { title: 'Task' }, actorId),
+      ).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.card.create).not.toHaveBeenCalled();
     });
 

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureTemplateContentEditable } from '../boards/template-guard.util';
 import { APP_EVENT } from '../events/events.constants';
 import type {
   LabelCreatedEvent,
@@ -18,6 +19,7 @@ export class LabelsService {
   ) {}
 
   async create(boardId: string, dto: CreateLabelDto, actorId: string) {
+    await ensureTemplateContentEditable(this.prisma, boardId);
     const label = await this.prisma.label.create({
       data: { name: dto.name, color: dto.color, boardId },
     });
@@ -45,6 +47,7 @@ export class LabelsService {
     actorId: string,
   ) {
     await this.ensureLabelInBoard(boardId, labelId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     const label = await this.prisma.label.update({
       where: { id: labelId },
       data: dto,
@@ -61,6 +64,7 @@ export class LabelsService {
 
   async remove(boardId: string, labelId: string, actorId: string) {
     await this.ensureLabelInBoard(boardId, labelId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     await this.prisma.label.delete({ where: { id: labelId } });
 
     this.eventEmitter.emit(APP_EVENT.LABEL_DELETED, {
@@ -75,6 +79,7 @@ export class LabelsService {
   async assignToCard(boardId: string, cardId: string, labelId: string) {
     await this.ensureCardInBoard(boardId, cardId);
     await this.ensureLabelInBoard(boardId, labelId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
 
     await this.prisma.card.update({
       where: { id: cardId },
@@ -86,6 +91,7 @@ export class LabelsService {
   async removeFromCard(boardId: string, cardId: string, labelId: string) {
     await this.ensureCardInBoard(boardId, cardId);
     await this.ensureLabelInBoard(boardId, labelId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
 
     await this.prisma.card.update({
       where: { id: cardId },

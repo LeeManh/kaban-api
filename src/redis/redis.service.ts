@@ -46,6 +46,10 @@ export class RedisService implements OnModuleDestroy {
     await this.redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
   }
 
+  async del(key: string): Promise<void> {
+    await this.redis.del(key);
+  }
+
   private key(jti: string) {
     return `bl:access:${jti}`;
   }

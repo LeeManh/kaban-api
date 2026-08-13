@@ -7,6 +7,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Role } from 'generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureTemplateContentEditable } from '../boards/template-guard.util';
 import { APP_EVENT } from '../events/events.constants';
 import type {
   CardAssigneeChangedEvent,
@@ -32,6 +33,8 @@ export class ListsService {
   ) {}
 
   async create(boardId: string, dto: CreateListDto, actorId: string) {
+    await ensureTemplateContentEditable(this.prisma, boardId);
+
     const last = await this.prisma.list.findFirst({
       where: { boardId },
       orderBy: { order: 'desc' },
@@ -66,6 +69,7 @@ export class ListsService {
     actorId: string,
   ) {
     await this.ensureListInBoard(boardId, listId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     const list = await this.prisma.list.update({
       where: { id: listId },
       data: dto,
@@ -87,10 +91,12 @@ export class ListsService {
     actorId: string,
   ) {
     await this.ensureListInBoard(boardId, listId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
 
     const targetBoardId = dto.targetBoardId ?? boardId;
     if (targetBoardId !== boardId) {
       await this.ensureBoardMembership(targetBoardId, actorId);
+      await ensureTemplateContentEditable(this.prisma, targetBoardId);
       return this.moveToOtherBoard(
         boardId,
         targetBoardId,
@@ -325,6 +331,7 @@ export class ListsService {
     });
     if (!source || source.boardId !== boardId)
       throw new NotFoundException('Không tìm thấy list trong board này');
+    await ensureTemplateContentEditable(this.prisma, boardId);
 
     const next = await this.prisma.list.findFirst({
       where: { boardId, order: { gt: source.order } },
@@ -406,6 +413,7 @@ export class ListsService {
   ) {
     await this.ensureListInBoard(boardId, listId);
     await this.ensureListInBoard(boardId, dto.targetListId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
 
     if (listId === dto.targetListId)
       throw new BadRequestException('List đích phải khác list nguồn');
@@ -469,6 +477,7 @@ export class ListsService {
 
   async remove(boardId: string, listId: string, actorId: string) {
     await this.ensureListInBoard(boardId, listId);
+    await ensureTemplateContentEditable(this.prisma, boardId);
     await this.prisma.list.delete({ where: { id: listId } });
 
     this.eventEmitter.emit(APP_EVENT.LIST_DELETED, {
