@@ -21,6 +21,7 @@
 - [Data Model](#data-model)
 - [Getting Started](#getting-started)
 - [Scripts](#scripts)
+- [Testing](#testing)
 - [Project Structure](#project-structure)
 - [Deployment](#deployment)
 
@@ -33,7 +34,7 @@ Kaban API is the backend for **Kanvas**, a real-time Kanban board for teams — 
 Domain services (Boards, Cards, Lists) stay **decoupled** from cross-cutting concerns like real-time sync and notifications: they only emit events through **`EventEmitter2`**, unaware of who's listening. The **Socket.IO gateway** and the **notification listener** react independently, each responsible for exactly one thing.
 
 > A class should have only one reason to change.  
-> — Robert C. Martin, *Agile Software Development: Principles, Patterns, and Practices*
+> — Robert C. Martin, _Agile Software Development: Principles, Patterns, and Practices_
 
 Anything that shouldn't block the request/response cycle — sending email, deleting an object from storage, firing a due-date reminder — is pushed onto a **BullMQ** queue and processed asynchronously by a dedicated worker.
 
@@ -109,13 +110,29 @@ The API runs at `http://localhost:3000/api` by default.
 ## Scripts
 
 ```bash
-npm run start:dev     # dev server, watch mode
-npm run build          # build to dist/
-npm run start:prod     # run the built app
-npm run lint           # eslint --fix
-npm run test           # unit tests (jest)
-npm run test:e2e       # e2e tests
+npm run start:dev        # dev server, watch mode
+npm run build             # build to dist/
+npm run start:prod        # run the built app
+npm run lint              # eslint --fix
+npm run test              # unit tests (jest)
+npm run test:cov          # unit tests with coverage report
+npm run test:integration  # integration tests (real Postgres via Testcontainers)
+npm run test:e2e          # e2e tests (full app, real Postgres + Redis via Testcontainers)
 ```
+
+## Testing
+
+Three layers, each with its own Jest config and its own tradeoff between speed and realism:
+
+| Layer                                 | Command                    | What it exercises                                                                                                                                                                                                             | Requires Docker? |
+| ------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| **Unit** (`src/**/*.spec.ts`)         | `npm run test`             | Services, guards, processors, listeners, gateway — in isolation, with `PrismaService`/`RedisService`/queues mocked.                                                                                                           | No               |
+| **Integration** (`test/integration/`) | `npm run test:integration` | Real Postgres schema constraints (unique, cascade delete, indexes) that a mocked Prisma client can never catch. Spins up an ephemeral Postgres container per test file via [Testcontainers](https://node.testcontainers.org). | Yes              |
+| **E2E** (`test/*.e2e-spec.ts`)        | `npm run test:e2e`         | Full HTTP request lifecycle — real app bootstrap, real Postgres + Redis, guards/RBAC enforced end-to-end via `supertest`.                                                                                                     | Yes              |
+
+Unit tests run in-process and need nothing external. Integration and e2e tests each boot their own disposable Postgres/Redis container per spec file and tear it down afterwards — no manual setup, but the Docker daemon must be running locally (or available to the CI runner).
+
+CI (`.github/workflows/deploy.yml`) runs the unit suite with `--coverage` and fails the build if coverage drops below the threshold configured there.
 
 ## Project Structure
 
