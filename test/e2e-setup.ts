@@ -1,11 +1,6 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
-import {
-  BadRequestException,
-  INestApplication,
-  ValidationPipe,
-  VersioningType,
-} from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
@@ -16,10 +11,7 @@ import {
 import { RedisContainer, StartedRedisContainer } from '@testcontainers/redis';
 import { AppModule } from '../src/app.module';
 import { API_VERSION } from '../src/api-version';
-import {
-  FieldError,
-  HttpExceptionFilter,
-} from '../src/common/filters/http-exception.filter';
+import { configureApp } from '../src/configure-app';
 import { MAIL_QUEUE } from '../src/mail/mail.constants';
 import { MailProcessor } from '../src/mail/mail.processor';
 import { DUE_REMINDER_QUEUE } from '../src/notifications/notifications.constants';
@@ -74,30 +66,7 @@ export async function setupE2eApp(): Promise<E2eContext> {
 
   const app = moduleFixture.createNestApplication();
   app.enableShutdownHooks();
-  app.setGlobalPrefix('api');
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: API_VERSION,
-  });
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      exceptionFactory: (errors) => {
-        const fieldErrors: FieldError[] = errors.map((err) => ({
-          field: err.property,
-          message:
-            Object.values(err.constraints ?? {})[0] ?? 'Giá trị không hợp lệ',
-        }));
-        return new BadRequestException({
-          message: 'Dữ liệu không hợp lệ',
-          errors: fieldErrors,
-        });
-      },
-    }),
-  );
-  app.useGlobalFilters(new HttpExceptionFilter());
+  configureApp(app);
 
   await app.init();
 

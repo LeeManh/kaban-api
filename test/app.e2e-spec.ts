@@ -28,4 +28,8 @@ describe('App bootstrap (e2e)', () => {
       .get(`${API_PREFIX}/this-route-does-not-exist`)
       .expect(404);
   });
+
+  it('serves the Swagger docs page', async () => {
+    await request(ctx.app.getHttpServer()).get('/api/docs').expect(200);
+  });
 });
