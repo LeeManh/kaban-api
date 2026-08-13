@@ -62,6 +62,7 @@ import { InvitesModule } from './invites/invites.module';
       useFactory: (cfg: ConfigType<typeof throttlerConfig>) => ({
         throttlers: [{ ttl: cfg.ttl, limit: cfg.limit }],
         skipIf: () => process.env.NODE_ENV === 'test',
+        errorMessage: 'Bạn đã gửi quá nhiều yêu cầu, vui lòng thử lại sau',
       }),
     }),
     BullModule.forRootAsync({
