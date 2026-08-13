@@ -42,8 +42,8 @@ import { UpdateTemplateVisibilityDto } from './dto/update-template-visibility.dt
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
 
 const ORDER_STEP = 1000;
-const TEMPLATES_CACHE_TTL_SECONDS = 60;
-const TEMPLATE_DETAIL_CACHE_TTL_SECONDS = 600;
+const TEMPLATES_CACHE_TTL_SECONDS = 86_400;
+const TEMPLATE_DETAIL_CACHE_TTL_SECONDS = 86_400;
 
 const BOARD_CONTENT_SELECT = {
   name: true,
@@ -601,6 +601,7 @@ export class BoardsService {
       data: { templateVisibility: dto.templateVisibility },
     });
     await this.redis.del(`tpl:detail:${boardId}`);
+    await this.invalidateTemplateListCache();
 
     return updated;
   }
@@ -951,9 +952,27 @@ export class BoardsService {
   }
 
   async remove(boardId: string) {
-    await this.ensureExists(boardId);
+    const board = await this.prisma.board.findUnique({
+      where: { id: boardId },
+      select: { id: true, isTemplate: true },
+    });
+    if (!board) throw new NotFoundException('Không tìm thấy board');
+
     await this.prisma.board.delete({ where: { id: boardId } });
+
+    if (board.isTemplate) {
+      await this.redis.del(`tpl:detail:${boardId}`);
+      await this.invalidateTemplateListCache();
+    }
+
     return { id: boardId };
+  }
+
+  private async invalidateTemplateListCache(): Promise<void> {
+    await Promise.all([
+      this.redis.delByPattern('tpl:browse:*'),
+      this.redis.delByPattern('tpl:filtered:*'),
+    ]);
   }
 
   private async ensureExists(boardId: string) {

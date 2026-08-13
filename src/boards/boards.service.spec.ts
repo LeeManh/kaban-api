@@ -21,7 +21,9 @@ import { BoardsService } from './boards.service';
 describe('BoardsService', () => {
   let service: BoardsService;
   let prisma: DeepMockProxy<PrismaService>;
-  let redis: jest.Mocked<Pick<RedisService, 'getJson' | 'setJson' | 'del'>>;
+  let redis: jest.Mocked<
+    Pick<RedisService, 'getJson' | 'setJson' | 'del' | 'delByPattern'>
+  >;
   let eventEmitter: jest.Mocked<Pick<EventEmitter2, 'emit'>>;
 
   const boardId = 'board-1';
@@ -32,6 +34,7 @@ describe('BoardsService', () => {
       getJson: jest.fn().mockResolvedValue(null),
       setJson: jest.fn(),
       del: jest.fn(),
+      delByPattern: jest.fn(),
     };
     eventEmitter = { emit: jest.fn() };
 
@@ -119,7 +122,7 @@ describe('BoardsService', () => {
         expect(redis.setJson).toHaveBeenCalledWith(
           'tpl:browse:3',
           { rows: [], total: 0 },
-          60,
+          86_400,
         );
         expect(result.total).toBe(0);
       });
@@ -165,7 +168,7 @@ describe('BoardsService', () => {
         expect(redis.setJson).toHaveBeenCalledWith(
           'tpl:filtered:DESIGN::1:3',
           { items: [], total: 0 },
-          60,
+          86_400,
         );
       });
     });
@@ -207,7 +210,7 @@ describe('BoardsService', () => {
       expect(redis.setJson).toHaveBeenCalledWith(
         `tpl:detail:${boardId}`,
         templateDetail,
-        600,
+        86_400,
       );
     });
 
@@ -266,6 +269,8 @@ describe('BoardsService', () => {
         data: { templateVisibility: TemplateVisibility.PRIVATE },
       });
       expect(redis.del).toHaveBeenCalledWith(`tpl:detail:${boardId}`);
+      expect(redis.delByPattern).toHaveBeenCalledWith('tpl:browse:*');
+      expect(redis.delByPattern).toHaveBeenCalledWith('tpl:filtered:*');
     });
   });
 
@@ -314,6 +319,21 @@ describe('BoardsService', () => {
       expect(prisma.board.delete).toHaveBeenCalledWith({
         where: { id: boardId },
       });
+      expect(redis.del).not.toHaveBeenCalled();
+      expect(redis.delByPattern).not.toHaveBeenCalled();
+    });
+
+    it('invalidates the template caches when deleting a template', async () => {
+      prisma.board.findUnique.mockResolvedValue({
+        id: boardId,
+        isTemplate: true,
+      } as never);
+
+      await service.remove(boardId);
+
+      expect(redis.del).toHaveBeenCalledWith(`tpl:detail:${boardId}`);
+      expect(redis.delByPattern).toHaveBeenCalledWith('tpl:browse:*');
+      expect(redis.delByPattern).toHaveBeenCalledWith('tpl:filtered:*');
     });
   });
 
