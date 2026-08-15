@@ -69,14 +69,15 @@ enum TemplateVisibility {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  avatar    String?
-  bio       String?  @db.Text
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  name         String?
+  avatar       String?
+  bio          String?  @db.Text
+  tokenVersion Int      @default(0) @map("token_version")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   refreshToken           RefreshToken[]
   ownedBoards            Board[]                 @relation("BoardOwner")

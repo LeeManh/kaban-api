@@ -21,6 +21,28 @@ export class RedisService implements OnModuleDestroy {
     return (await this.redis.exists(this.key(jti))) === 1;
   }
 
+  async getTokenVersion(userId: string): Promise<number | null> {
+    const raw = await this.redis.get(this.tokenVersionKey(userId));
+    return raw !== null ? Number(raw) : null;
+  }
+
+  async setTokenVersion(
+    userId: string,
+    version: number,
+    ttlSeconds: number,
+  ): Promise<void> {
+    await this.redis.set(
+      this.tokenVersionKey(userId),
+      String(version),
+      'EX',
+      ttlSeconds,
+    );
+  }
+
+  async invalidateTokenVersion(userId: string): Promise<void> {
+    await this.redis.del(this.tokenVersionKey(userId));
+  }
+
   async storeResetToken(
     tokenHash: string,
     userId: string,
@@ -73,5 +95,9 @@ export class RedisService implements OnModuleDestroy {
 
   private resetKey(tokenHash: string) {
     return `pwreset:${tokenHash}`;
+  }
+
+  private tokenVersionKey(userId: string) {
+    return `user:token-version:${userId}`;
   }
 }

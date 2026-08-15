@@ -64,7 +64,7 @@ export class AuthService {
       await this.tryAcceptInvite(inviteToken, user.id, user.email);
     if (inviteLinkToken) await this.tryJoinInviteLink(inviteLinkToken, user.id);
 
-    return this.issueTokens(user.id, user.email);
+    return this.issueTokens(user.id, user.email, user.tokenVersion);
   }
 
   async login(dto: LoginDto) {
@@ -82,7 +82,12 @@ export class AuthService {
     if (dto.inviteLinkToken)
       await this.tryJoinInviteLink(dto.inviteLinkToken, user.id);
 
-    return this.issueTokens(user.id, user.email, dto.rememberMe ?? false);
+    return this.issueTokens(
+      user.id,
+      user.email,
+      user.tokenVersion,
+      dto.rememberMe ?? false,
+    );
   }
 
   private async tryAcceptInvite(token: string, userId: string, email: string) {
@@ -130,9 +135,16 @@ export class AuthService {
         data: { revokedAt: new Date() },
       });
 
+      const user = await tx.user.findUnique({
+        where: { id: payload.sub },
+        select: { tokenVersion: true },
+      });
+      if (!user) throw new UnauthorizedException('Refresh token không hợp lệ');
+
       return this.issueTokens(
         payload.sub,
         payload.email,
+        user.tokenVersion,
         payload.rememberMe ?? false,
         tx,
       );
@@ -157,10 +169,17 @@ export class AuthService {
   }
 
   async logoutAll(userId: string) {
-    await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    await this.prisma.$transaction([
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { tokenVersion: { increment: 1 } },
+      }),
+    ]);
+    await this.redis.invalidateTokenVersion(userId);
 
     this.eventEmitter.emit(APP_EVENT.USER_LOGGED_OUT, {
       userId,
@@ -216,10 +235,16 @@ export class AuthService {
   private async issueTokens(
     userId: string,
     email: string,
+    tokenVersion: number,
     rememberMe = false,
     tx: Prisma.TransactionClient = this.prisma,
   ) {
-    const payload: JwtPayload = { sub: userId, email, rememberMe };
+    const payload: JwtPayload = {
+      sub: userId,
+      email,
+      tokenVersion,
+      rememberMe,
+    };
     const refreshExpiresIn = rememberMe
       ? this.jwtCfg.refreshRememberExpiresIn
       : this.jwtCfg.refreshExpiresIn;

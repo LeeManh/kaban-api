@@ -13,6 +13,9 @@ import { JwtPayload } from 'src/auth/types/jwt-payload.type';
 import { jwtConfig } from 'src/config';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { RedisService } from 'src/redis/redis.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+
+const TOKEN_VERSION_CACHE_TTL_SECONDS = 30;
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -21,7 +24,8 @@ export class JwtAuthGuard implements CanActivate {
     @Inject(jwtConfig.KEY)
     private readonly jwtCfg: ConfigType<typeof jwtConfig>,
     private readonly reflector: Reflector,
-    private readonly blacklist: RedisService,
+    private readonly redis: RedisService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -43,7 +47,18 @@ export class JwtAuthGuard implements CanActivate {
         secret: this.jwtCfg.accessSecret,
       });
 
-      if (payload.jti && (await this.blacklist.isBlacklisted(payload.jti)))
+      const [blacklisted, currentTokenVersion] = await Promise.all([
+        payload.jti ? this.redis.isBlacklisted(payload.jti) : false,
+        this.resolveTokenVersion(payload.sub),
+      ]);
+
+      if (blacklisted)
+        throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
+
+      if (
+        currentTokenVersion === null ||
+        payload.tokenVersion !== currentTokenVersion
+      )
         throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
 
       request.user = payload;
@@ -52,6 +67,24 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  private async resolveTokenVersion(userId: string): Promise<number | null> {
+    const cached = await this.redis.getTokenVersion(userId);
+    if (cached !== null) return cached;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { tokenVersion: true },
+    });
+    if (!user) return null;
+
+    await this.redis.setTokenVersion(
+      userId,
+      user.tokenVersion,
+      TOKEN_VERSION_CACHE_TTL_SECONDS,
+    );
+    return user.tokenVersion;
   }
 
   private extractToken(request: Request): string | undefined {

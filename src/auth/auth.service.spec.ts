@@ -39,7 +39,11 @@ describe('AuthService', () => {
   let redis: jest.Mocked<
     Pick<
       RedisService,
-      'blacklist' | 'isBlacklisted' | 'storeResetToken' | 'consumeResetToken'
+      | 'blacklist'
+      | 'isBlacklisted'
+      | 'storeResetToken'
+      | 'consumeResetToken'
+      | 'invalidateTokenVersion'
     >
   >;
   let invites: jest.Mocked<Pick<InvitesService, 'accept'>>;
@@ -65,7 +69,9 @@ describe('AuthService', () => {
         updateMany: jest.fn(),
         create: jest.fn(),
       },
-      $transaction: jest.fn(),
+      $transaction: jest.fn((arg: unknown[] | ((tx: unknown) => unknown)) =>
+        Array.isArray(arg) ? Promise.all(arg) : arg(prisma),
+      ),
     };
     jwt = { verifyAsync: jest.fn(), signAsync: jest.fn(), decode: jest.fn() };
     redis = {
@@ -73,6 +79,7 @@ describe('AuthService', () => {
       isBlacklisted: jest.fn(),
       storeResetToken: jest.fn(),
       consumeResetToken: jest.fn(),
+      invalidateTokenVersion: jest.fn(),
     };
     invites = { accept: jest.fn() };
     inviteLinks = { join: jest.fn() };
@@ -117,6 +124,7 @@ describe('AuthService', () => {
       prisma.user.create.mockResolvedValue({
         id: 'user-1',
         email: 'a@b.com',
+        tokenVersion: 0,
       });
 
       const result = await service.register({
@@ -142,6 +150,7 @@ describe('AuthService', () => {
       prisma.user.create.mockResolvedValue({
         id: 'user-1',
         email: 'a@b.com',
+        tokenVersion: 0,
       });
       invites.accept.mockRejectedValue(new Error('invite expired'));
 
@@ -192,6 +201,7 @@ describe('AuthService', () => {
         id: 'user-1',
         email: 'a@b.com',
         password: 'hashed-password',
+        tokenVersion: 0,
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -212,6 +222,7 @@ describe('AuthService', () => {
         id: 'user-1',
         email: 'a@b.com',
         password: 'hashed-password',
+        tokenVersion: 0,
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -280,6 +291,20 @@ describe('AuthService', () => {
       );
     });
 
+    it('throws when the user for the refresh token no longer exists', async () => {
+      jwt.verifyAsync.mockResolvedValue({ sub: 'user-1', email: 'a@b.com' });
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 100_000),
+      });
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.refresh('good-token')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
     it('revokes the old token and issues a new pair on success', async () => {
       jwt.verifyAsync.mockResolvedValue({
         sub: 'user-1',
@@ -291,6 +316,7 @@ describe('AuthService', () => {
         revokedAt: null,
         expiresAt: new Date(Date.now() + 100_000),
       });
+      prisma.user.findUnique.mockResolvedValue({ tokenVersion: 0 });
 
       const result = await service.refresh('good-token');
 
@@ -307,7 +333,10 @@ describe('AuthService', () => {
 
   describe('logout', () => {
     it('revokes the matching refresh token', async () => {
-      await service.logout({ sub: 'user-1', email: 'a@b.com' }, 'rt-raw');
+      await service.logout(
+        { sub: 'user-1', email: 'a@b.com', tokenVersion: 0 },
+        'rt-raw',
+      );
 
       expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
         where: { tokenHash: anyString(), revokedAt: null },
@@ -317,7 +346,13 @@ describe('AuthService', () => {
 
     it('blacklists the access token when jti and exp are present', async () => {
       await service.logout(
-        { sub: 'user-1', email: 'a@b.com', jti: 'jti-1', exp: 999999 },
+        {
+          sub: 'user-1',
+          email: 'a@b.com',
+          tokenVersion: 0,
+          jti: 'jti-1',
+          exp: 999999,
+        },
         'rt-raw',
       );
 
@@ -325,14 +360,17 @@ describe('AuthService', () => {
     });
 
     it('skips blacklisting when jti or exp is missing', async () => {
-      await service.logout({ sub: 'user-1', email: 'a@b.com' }, 'rt-raw');
+      await service.logout(
+        { sub: 'user-1', email: 'a@b.com', tokenVersion: 0 },
+        'rt-raw',
+      );
 
       expect(redis.blacklist).not.toHaveBeenCalled();
     });
 
     it('emits USER_LOGGED_OUT with the user id and jti', async () => {
       await service.logout(
-        { sub: 'user-1', email: 'a@b.com', jti: 'jti-1' },
+        { sub: 'user-1', email: 'a@b.com', tokenVersion: 0, jti: 'jti-1' },
         'rt-raw',
       );
 
@@ -420,7 +458,32 @@ describe('AuthService', () => {
         where: { userId: 'user-1', revokedAt: null },
         data: { revokedAt: anyDate() },
       });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { tokenVersion: { increment: 1 } },
+      });
+      expect(redis.invalidateTokenVersion).toHaveBeenCalledWith('user-1');
       expect(result).toEqual({ message: 'Đặt lại mật khẩu thành công' });
+    });
+  });
+
+  describe('logoutAll', () => {
+    it('revokes every refresh token, bumps the token version and clears the cache', async () => {
+      await service.logoutAll('user-1');
+
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', revokedAt: null },
+        data: { revokedAt: anyDate() },
+      });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { tokenVersion: { increment: 1 } },
+      });
+      expect(redis.invalidateTokenVersion).toHaveBeenCalledWith('user-1');
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        APP_EVENT.USER_LOGGED_OUT,
+        { userId: 'user-1' },
+      );
     });
   });
 });
